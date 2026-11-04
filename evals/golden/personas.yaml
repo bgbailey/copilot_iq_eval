@@ -1,0 +1,43 @@
+# =============================================================================================
+# Test personas (PLAN §4.3)
+#
+# One Entra ID test user per row-level-security role, each with a Microsoft 365 Copilot licence
+# (and Power BI Pro if the capacity is smaller than F64). The same prompt asked by different
+# personas must return different, RLS-correct answers.
+#
+#   upn              UPN template. {tenant_domain} is filled in from config/settings.toml at run
+#                    time, so no tenant-specific identity is committed.
+#   keyvault_secret  Key Vault secret that holds the persona's MSAL token cache (PLAN §11).
+#   workspaces       Fabric workspaces the persona can access. Engine-log heartbeats are sent only
+#                    to these (PLAN §9.5 rule 3).
+#   rls              The row-level security that applies to the persona, in words.
+#   rls_role         Role in the certified models: AllRegions or RegionScope; omit for none.
+#   regions          RegionScope only: the regions the persona sees (rows in security_user_region).
+#   purpose          Why the persona exists in the test design.
+#
+# Schema: src/copilot_evals/schemas.py, class Persona.
+# =============================================================================================
+
+exec:
+  upn: "eval.exec@{tenant_domain}"
+  keyvault_secret: msal-cache-exec
+  workspaces: [ws-eval-certified, ws-eval-sandbox]
+  rls: "All regions (AllRegions role)"
+  rls_role: AllRegions
+  purpose: "Baseline; exposed to the decoy model and the draft document"
+
+east:
+  upn: "eval.east@{tenant_domain}"
+  keyvault_secret: msal-cache-east
+  workspaces: [ws-eval-certified]
+  rls: "East region only (RegionScope role)"
+  rls_role: RegionScope
+  regions: [East]
+  purpose: "RLS correctness: must only ever see East"
+
+noaccess:
+  upn: "eval.noaccess@{tenant_domain}"
+  keyvault_secret: msal-cache-noaccess
+  workspaces: [ws-eval-sandbox]
+  rls: "No access to the certified workspace"
+  purpose: "Must not answer 'revenue' from the decoy model or the draft document"

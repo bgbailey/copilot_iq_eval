@@ -1,0 +1,38 @@
+# Ruff configuration (lint + format): https://docs.astral.sh/ruff/
+# Lint: `uv run ruff check`   Format: `uv run ruff format`
+
+line-length = 120
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+    "S",   # flake8-bandit: security
+    "DTZ", # flake8-datetimez: timezone-aware datetimes only (all times are UTC)
+    "N",   # pep8-naming
+]
+
+[lint.per-file-ignores]
+# Tests use assert, hold fake secret names, and exec evaluator files the way the Foundry sandbox does.
+"tests/**" = ["S101", "S102", "S105", "S106"]
+"scripts/**" = ["S603", "S607"] # scripts call the GitHub CLI with arguments built from repository files
+# Fabric notebook sources: `spark`, `display` and `get_ipython` are notebook globals, imports follow the
+# parameters cell by design, and validation cells use assert the way notebooks do.
+"fabric/notebooks/src/**" = ["E402", "F821", "N812", "S101"]
+# Phase 0 spikes are throwaway probes run by hand against a test tenant (spikes/README.md).
+"spikes/**" = ["S101", "S603", "S607"]
+
+[lint.isort]
+known-first-party = ["copilot_evals"]
+
+[format]
+docstring-code-format = true

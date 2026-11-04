@@ -1,0 +1,30 @@
+# =============================================================================================
+# Gate policy (PLAN §9.10). `evals run` exits with code 1 when the policy for its suite fails,
+# which is what blocks a pull request or raises the nightly alert (P2.6, P9.3).
+#
+# Verdicts come from the evaluators in evals/evaluators/, run by Microsoft Foundry Evaluations or by
+# the local backend (ADR-007, ADR-009); the gate only counts them, and the same policy applies to
+# both backends. An attempt passes when every evaluator passes, fails when any evaluator fails, and
+# is INCONCLUSIVE when an evaluator errored (it raises on incomplete evidence or a surface error)
+# and none failed.
+#
+# Why the gate looks like this (PLAN §9.6.5): with a few dozen cases, a raw pass-rate threshold is
+# noisy, so the hard gates are (1) critical cases pass k of k, (2) zero decoy hits and (3) no case
+# that passed in the baseline now fails. INCONCLUSIVE attempts (incomplete evidence, throttling,
+# surface errors) are retried once, never pass a gate and never count as regressions.
+#
+# Baseline = the last green nightly run (P9.3).
+# =============================================================================================
+
+pr:
+  layers: [L0, L1]
+  critical: {require: pass_all_k, k: 3}
+  standard: {min_pass_rate: 0.90}
+  decoy_hits: 0
+  regressions_vs_baseline: 0          # case that passed in baseline and fails now (both runs complete)
+
+nightly:
+  layers: [L0, L1, L2, L3]
+  critical: {require: pass_all_k, k: 3, surfaces: [ref_mcp, agent_cli]}
+  report_only_surfaces: [chat_api, ui_export, copilot_studio]
+  alert_on: [critical_fail, decoy_hit, model_changed, auth_failure]

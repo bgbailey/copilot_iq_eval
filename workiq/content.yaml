@@ -1,0 +1,98 @@
+# =============================================================================================
+# Work IQ content pack: the Microsoft 365 documents the joint Work IQ + Fabric IQ cases rely on
+# (PLAN §4.4, ADR-010). Synthetic Contoso content only.
+#
+#   sites      SharePoint sites the documents go to. Create them by hand (PLAN §6 T20) with the
+#              readers below as members, then put their URLs in config/settings.toml under
+#              [workiq.sites]. The noaccess persona must not be able to read a source document.
+#   documents  One entry per document in evals/golden/models.yaml `documents`: the site, the folder
+#              and the text. "{fact_key}" inserts a fact from models.yaml, so the figures in the
+#              documents and in the expected answers can never disagree.
+#
+# Build the .docx files with:  python scripts/build_workiq_documents.py
+# Seed them into SharePoint with:  uv run evals deploy workiq
+# Check consistency with:  uv run pytest tests/unit/test_workiq_content.py
+# =============================================================================================
+
+version: 1
+
+sites:
+  planning:
+    title: Contoso Planning
+    readers: [exec, east]
+  all_company:
+    title: Contoso All Company
+    readers: [exec, east, noaccess]
+
+documents:
+  fy25_revenue_targets:
+    site: planning
+    folder: Planning/FY2025
+    author: Contoso Finance (fictional)
+    blocks:
+      - title: FY2025 Revenue Targets - APPROVED
+      - meta: >-
+          Contoso Finance · Approved by the Executive Leadership Team on 18 June 2024 · Applies to
+          fiscal year 2025 (1 July 2024 to 30 June 2025) · Status: approved
+      - heading: Purpose
+      - paragraph: >-
+          This memo records Contoso's approved gross revenue targets for fiscal year 2025 (FY2025).
+          It is the source of record for targets only. Actual results are reported from the
+          certified Sales Analytics semantic model; do not quote actuals from this memo or from
+          draft documents.
+      - heading: Targets
+      - paragraph: >-
+          The company target for FY2025 is {gross_revenue_target} of gross revenue, before
+          discounts and returns. Regional targets are:
+      - table:
+          columns: [Region, FY2025 gross revenue target]
+          rows:
+            - [East, "{east_gross_revenue_target}"]
+            - [West, "{west_gross_revenue_target}"]
+            - [Central, "{central_gross_revenue_target}"]
+            - [International, "{international_gross_revenue_target}"]
+            - [Company total, "{gross_revenue_target}"]
+      - heading: Notes
+      - bullets:
+          - Targets are set on gross revenue. Net revenue and margin targets are in the FY2025 operating plan.
+          - Performance against target is reviewed quarterly by the Executive Leadership Team.
+          - "Questions: Contoso Finance planning team."
+
+  fy25_service_objectives:
+    site: planning
+    folder: Planning/FY2025
+    author: Contoso Service Operations (fictional)
+    blocks:
+      - title: FY2025 Service Level Objectives
+      - meta: >-
+          Contoso Service Operations · Approved on 1 July 2024 · Applies to fiscal year 2025
+          (1 July 2024 to 30 June 2025) · Status: approved
+      - heading: Purpose
+      - paragraph: >-
+          These objectives set how quickly Contoso resolves service incidents in FY2025. Actual
+          performance is reported from the certified Service Operations semantic model.
+      - heading: Mean time to resolve
+      - table:
+          columns: [Severity, Mean time to resolve objective]
+          rows:
+            - [Sev1, "{sev1_mttr_objective_hours}"]
+            - [Sev2, "{sev2_mttr_objective_hours}"]
+            - [Sev3, 48 hours]
+            - [Sev4, 5 business days]
+      - paragraph: >-
+          The Sev1 objective is {sev1_mttr_objective_hours} or less, measured as the mean
+          resolution time of Sev1 incidents opened during the fiscal year.
+
+  fy25_revenue_draft:
+    site: all_company
+    folder: Finance Drafts
+    author: Contoso Finance (fictional)
+    blocks:
+      - title: FY2025 revenue - DRAFT
+      - meta: DRAFT · Not reviewed · Do not distribute or quote
+      - paragraph: >-
+          Preliminary estimate prepared before year-end close: FY2025 revenue of about
+          {draft_revenue}. These figures are unaudited and will change.
+      - bullets:
+          - Excludes late returns and year-end adjustments.
+          - Superseded by the certified models once the year is closed.

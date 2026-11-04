@@ -1,0 +1,120 @@
+# =============================================================================================
+# CI: lint, type-check, unit and contract tests, offline validation, a local-backend scoring run
+# over the sample rows, generated-file and deployment-plan checks, and the infrastructure as code
+# (Bicep build, PowerShell parse, shellcheck) (PLAN §10 `ci.yml`).
+#
+# Runs on GitHub-hosted runners for every push to main and every pull request. It needs no
+# secrets and no tenant: tests/unit never touch the network, contract tests replay fixtures, and the
+# local evaluation backend runs the evaluators in this job without any Azure resource (ADR-009).
+# The live evaluation suites run in pr-gate.yml and nightly.yml.
+# =============================================================================================
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, type-check, test, validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        # Uses the committed lockfile when there is one; see docs/getting-started.md.
+        run: |
+          if [ -f uv.lock ]; then
+            uv sync --locked
+          else
+            echo "::warning title=No lockfile::uv.lock is not committed yet. Run 'uv lock' and commit uv.lock for reproducible builds."
+            uv sync
+          fi
+
+      - name: Lint (ruff)
+        run: uv run ruff check --output-format=github
+
+      - name: Type-check (mypy --strict)
+        run: uv run mypy src
+
+      - name: Test (pytest)
+        run: uv run pytest --cov --cov-report=term-missing
+
+      - name: Validate the golden set and evaluator definitions
+        run: uv run evals validate --strict
+
+      - name: Check generated files are current (notebooks, Work IQ documents)
+        run: |
+          uv run python scripts/build_notebooks.py --check
+          uv run python scripts/build_workiq_documents.py --check
+
+      - name: Preview the deployment plans (no sign-in, no changes)
+        run: |
+          cp config/settings.example.toml "$RUNNER_TEMP/settings.toml"
+          sed -i 's/^capacity = .*/capacity = "ci-capacity"/; s/^tenant_domain = .*/tenant_domain = "contoso.example"/' "$RUNNER_TEMP/settings.toml"
+          uv run evals deploy fabric --dry-run --settings "$RUNNER_TEMP/settings.toml"
+          sed -i 's#https://<tenant>.sharepoint.com#https://contoso.sharepoint.com#' "$RUNNER_TEMP/settings.toml"
+          uv run evals deploy workiq --dry-run --settings "$RUNNER_TEMP/settings.toml"
+
+      - name: Score the sample rows on the local backend
+        env:
+          NO_COLOR: "1" # plain text for the job summary
+        run: |
+          mkdir -p out
+          uv run evals score evals/evaluators/samples/eval-items.jsonl --out out/sample | tee out/sample.txt
+          {
+            echo '### Sample rows scored on the local backend'
+            echo
+            echo 'The evaluators that run in Microsoft Foundry, run here in the CI job (docs/evaluation-paths.md).'
+            echo
+            echo '```text'
+            cat out/sample.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  infra:
+    name: Infrastructure as code
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Compile the Bicep template and parameters
+        run: |
+          az bicep install
+          az bicep build --file infra/azure/main.bicep --stdout > /dev/null
+          az bicep build-params --file infra/azure/main.bicepparam --stdout > /dev/null
+
+      - name: Parse the PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Path infra, spikes -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) {
+              Write-Host "::error file=$($_.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Lint the shell scripts (shellcheck)
+        run: shellcheck infra/azure/*.sh spikes/*.sh

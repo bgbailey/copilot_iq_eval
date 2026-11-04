@@ -1,0 +1,93 @@
+# =============================================================================================
+# Evaluator catalog (PLAN §9.6, §9.11, §9.12, ADR-007, ADR-009)
+#
+# Every check the harness makes is one of these evaluators, and the same files run on either
+# evaluation backend (docs/evaluation-paths.md):
+#   foundry  `evals foundry sync` (P2.7) registers each entry in the Foundry project's evaluator
+#            catalog with project_client.beta.evaluators.create_version(...), sending the source
+#            file as `code_text` (type: code) or `prompt_text` (type: prompt).
+#   local    The harness executes the same code files and sends the same prompts to its judge
+#            deployment (src/copilot_evals/evaluation/local.py).
+#
+# Evaluator names are content-addressed: <name_prefix><key>_<first 8 hex digits of the SHA-256 of
+# the source and this entry>. Foundry registers each evaluator under that name, so a run always uses
+# exactly the evaluator source in its commit and a pull request can never change what `main` runs.
+# Both backends record the same name as the evaluator version on every result. Spike S7 checks
+# whether Foundry testing criteria can pin evaluator versions instead (config/contracts.yaml).
+#
+#   type          code | prompt
+#   source        path relative to evals/evaluators/
+#   reads         (code) dataset-row fields the evaluator may read; checked against the code and
+#                 against the item schema in eval-definition.yaml
+#   inputs        (prompt) the {{variables}} in the prompt; each is mapped in eval-definition.yaml
+#   metric        how Foundry reports the score (code-based evaluators are always continuous 0-1)
+#
+# Pass thresholds live with the testing criteria in eval-definition.yaml.
+# Check with: uv run evals validate --strict
+# =============================================================================================
+
+version: 1
+name_prefix: cfiq_
+
+evaluators:
+  value_match:
+    type: code
+    source: code/value_match.py
+    display_name: Value match
+    description: The answer states the live expected value within tolerance (PLAN §9.6.1).
+    categories: [quality]
+    reads: [status, expected_behavior, expected_shape, expected_unit, expected_value, expected_table,
+            table_match, table_n, tolerance, expected_facts, response, sample]
+    metric: {type: continuous, desirable_direction: increase, min_value: 0.0, max_value: 1.0}
+
+  routing_match:
+    type: code
+    source: code/routing_match.py
+    display_name: Routing match
+    description: The answer came from the expected certified semantic model(s) (PLAN §9.6.2).
+    categories: [quality]
+    reads: [status, expected_behavior, expected_models, observed_models, route_mode, evidence_complete]
+    metric: {type: continuous, desirable_direction: increase, min_value: 0.0, max_value: 1.0}
+
+  no_decoy:
+    type: code
+    source: code/no_decoy.py
+    display_name: No decoy
+    description: >-
+      No decoy model was queried, no unofficial document was cited, and no figure was answered from
+      a non-Fabric source (PLAN §9.6.2).
+    categories: [quality]
+    reads: [status, expected_behavior, observed_models, decoy_models, doc_decoy_patterns, citations,
+            response, evidence_complete]
+    metric: {type: continuous, desirable_direction: increase, min_value: 0.0, max_value: 1.0}
+
+  citation_match:
+    type: code
+    source: code/citation_match.py
+    display_name: Citation match
+    description: The answer names its certified source when the case requires it (PLAN §9.6.3).
+    categories: [quality]
+    reads: [status, citation_required, expected_sources, citations, response]
+    metric: {type: continuous, desirable_direction: increase, min_value: 0.0, max_value: 1.0}
+
+  work_source_match:
+    type: code
+    source: code/work_source_match.py
+    display_name: Work source match
+    description: >-
+      The answer cites every seeded Microsoft 365 document it relies on, such as the approved targets,
+      for joint Work IQ + Fabric IQ cases (PLAN §9.6.3, §4.4).
+    categories: [quality]
+    reads: [status, expected_behavior, work_sources, citations, response]
+    metric: {type: continuous, desirable_direction: increase, min_value: 0.0, max_value: 1.0}
+
+  behavior_match:
+    type: prompt
+    source: prompts/behavior_match.md
+    display_name: Behaviour match
+    description: >-
+      The AI judge: the answer answers, asks a clarifying question, refuses or reports no access, as
+      the case expects (PLAN §9.6.4). It never sees an expected value.
+    categories: [quality]
+    inputs: [expected_behavior, query, response]
+    metric: {type: ordinal, desirable_direction: increase, min_value: 1, max_value: 5}

@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.mypy-type-checker",
+    "charliermarsh.ruff",
+    "github.copilot-chat",
+    "redhat.vscode-yaml",
+    "tamasfe.even-better-toml",
+    "ms-toolsai.jupyter",
+    "teamsdevapp.ms-teams-vscode-extension",
+    "bierner.markdown-mermaid"
+  ]
+}

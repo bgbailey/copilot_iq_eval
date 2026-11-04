@@ -1,0 +1,188 @@
+# =============================================================================================
+# Evaluation definition (PLAN §9.11, §9.12, ADR-007, ADR-009), in the OpenAI Evals format
+#
+# One definition for both evaluation backends (docs/evaluation-paths.md):
+#   foundry  The harness creates one Foundry eval per suite and definition version, and one run per
+#            `evals run` (P2.6, P2.7):
+#              openai_client.evals.create(name, data_source_config, testing_criteria)
+#              openai_client.evals.runs.create(eval_id, name, data_source=run_data_source)
+#   local    The harness applies the same testing criteria, thresholds, data mappings and
+#            extraction messages itself (src/copilot_evals/evaluation/local.py).
+#
+# Each dataset row is one attempt: the question, Copilot's answer and citations, what was expected
+# (computed live from Fabric) and the routing evidence (from the engine logs). Code-based
+# evaluators have no network access on either backend, so everything they need is in the row.
+#
+# Placeholders are whole string values in single braces, filled in at run time:
+#   {judge_deployment}  model deployment for the AI judge and the extraction step (settings.toml)
+#   {dataset_id}        the uploaded JSONL dataset for this run
+#   {catalog:<key>}     the content-addressed catalog name of evaluator <key> (evaluators.yaml)
+#   {file:<path>}       the text of a file under evals/evaluators/
+# Foundry's own {{item.<field>}} and {{sample.<field>}} templates are passed through unchanged.
+#
+# The row model in code is copilot_evals.schemas.EvalItem; a unit test keeps the two in step.
+# Check with: uv run evals validate --strict
+# =============================================================================================
+
+version: 1
+
+# The expected answer never reaches an LLM: only code-based evaluators may read these fields.
+judge_blind_fields: [expected_value, expected_table, expected_facts, tolerance]
+
+data_source_config:
+  type: custom
+  include_sample_schema: true # the extraction step's output reaches evaluators as item["sample"]
+  item_schema:
+    type: object
+    required: [attempt_id, run_id, case_id, intent, surface, variant, layer, persona, attempt_no, criticality,
+               status, latency_ms, query, response, citations, expected_behavior, expected_shape, expected_unit,
+               expected_value, expected_table, table_match, table_n, tolerance, expected_models, route_mode,
+               decoy_models, doc_decoy_patterns, citation_required, expected_sources, work_sources,
+               expected_facts, observed_models, observed_by_source, evidence_complete]
+    properties:
+      # --- Identity of the attempt ---------------------------------------------------------------
+      attempt_id: {type: string}
+      run_id: {type: string}
+      case_id: {type: string}
+      intent: {type: string}
+      surface: {type: string}
+      variant: {type: string}
+      layer: {type: string, enum: [L1, L1-DA, L2, L3]}
+      persona: {type: string}
+      attempt_no: {type: integer, minimum: 1}
+      criticality: {type: string, enum: [critical, standard]}
+      status: {type: string, enum: [ok, error, timeout, throttled]}
+      latency_ms: {type: integer, minimum: 0}
+      # --- What Copilot was asked and said -------------------------------------------------------
+      query: {type: string}
+      response: {type: string}
+      citations:
+        type: array
+        items:
+          type: object
+          properties:
+            title: {type: [string, "null"]}
+            url: {type: [string, "null"]}
+            kind: {type: string}
+      # --- What a correct response looks like (from the golden set and live ground truth) --------
+      expected_behavior: {type: string, enum: [answer, clarify, refuse, no_access]}
+      expected_shape: {type: string, enum: [scalar, table, none]}
+      expected_unit: {type: [string, "null"]}
+      expected_value: {type: [string, "null"]} # decimal as a string, so no precision is lost
+      expected_table:
+        type: array
+        items:
+          type: object
+          properties:
+            key: {type: string}
+            value: {type: string}
+      table_match: {type: [string, "null"]}
+      table_n: {type: [integer, "null"]}
+      tolerance:
+        type: [object, "null"]
+        properties:
+          rel: {type: string}
+          abs: {type: string}
+          display_aware: {type: boolean}
+          max_display_rel: {type: [string, "null"]}
+      expected_models: {type: array, items: {type: string}}
+      route_mode: {type: string, enum: [exclusive, includes, any_of]}
+      decoy_models: {type: array, items: {type: string}}
+      doc_decoy_patterns: {type: array, items: {type: string}}
+      citation_required: {type: boolean}
+      expected_sources: {type: array, items: {type: string}}
+      # --- Joint Work IQ + Fabric IQ cases (PLAN §4.4); empty for every other case ------------------
+      work_sources: # seeded documents the answer must cite, with the fragments that identify them
+        type: array
+        items:
+          type: object
+          properties:
+            key: {type: string}
+            match: {type: array, items: {type: string}}
+      expected_facts: # figures from those documents the answer must state (judge-blind)
+        type: array
+        items:
+          type: object
+          properties:
+            key: {type: string}
+            value: {type: string}
+            unit: {type: string}
+      # --- Routing evidence gathered by the runner (PLAN §9.5) ------------------------------------
+      observed_models: {type: array, items: {type: string}}
+      observed_by_source:
+        type: object
+        additionalProperties: {type: array, items: {type: string}}
+      evidence_complete: {type: boolean}
+
+testing_criteria:
+  # Code-based evaluators read the whole row, so they need no data_mapping. They score 1.0 or 0.0.
+  - type: azure_ai_evaluator
+    name: value_match
+    evaluator_name: "{catalog:value_match}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}" # required by the service even though no LLM is called
+      pass_threshold: 0.5
+
+  - type: azure_ai_evaluator
+    name: routing_match
+    evaluator_name: "{catalog:routing_match}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}"
+      pass_threshold: 0.5
+
+  - type: azure_ai_evaluator
+    name: no_decoy
+    evaluator_name: "{catalog:no_decoy}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}"
+      pass_threshold: 0.5
+
+  - type: azure_ai_evaluator
+    name: citation_match
+    evaluator_name: "{catalog:citation_match}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}"
+      pass_threshold: 0.5
+
+  - type: azure_ai_evaluator
+    name: work_source_match
+    evaluator_name: "{catalog:work_source_match}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}"
+      pass_threshold: 0.5
+
+  # The AI judge: prompt-based, scored 1-5. The threshold is calibrated in P10.1.
+  - type: azure_ai_evaluator
+    name: behavior_match
+    evaluator_name: "{catalog:behavior_match}"
+    data_mapping:
+      expected_behavior: "{{item.expected_behavior}}"
+      query: "{{item.query}}"
+      response: "{{item.response}}"
+    initialization_parameters:
+      deployment_name: "{judge_deployment}"
+      threshold: 4
+
+# Expected-blind extraction (PLAN §9.6.1): the backend asks the judge model which figure Copilot's
+# answer gives, without the expected value, and hands the reply to value_match as
+# item["sample"]["output_text"]. Foundry runs it for every row; the local backend only for `answer`
+# rows, the only ones value_match reads it for. value_match uses it only when its own parsing finds
+# several candidates, and only if it matches one of them.
+run_data_source:
+  type: azure_ai_target_completions
+  source: {type: file_id, id: "{dataset_id}"}
+  input_messages:
+    type: template
+    template:
+      - type: message
+        role: developer
+        content: {type: input_text, text: "{file:prompts/value_extraction.md}"}
+      - type: message
+        role: user
+        content:
+          type: input_text
+          text: "Question: {{item.query}}\nExpected shape: {{item.expected_shape}}, unit: {{item.expected_unit}}\n\nAnswer:\n{{item.response}}"
+  target:
+    type: azure_ai_model
+    model: "{judge_deployment}"
+    sampling_params: {top_p: 1.0, max_completion_tokens: 2048}

@@ -1,0 +1,52 @@
+#cloud-config
+# =============================================================================================
+# Self-hosted GitHub Actions runner for copilot-fabriciq-evals (PLAN §9.2, backlog P9.2).
+#
+# Installs what the evaluation jobs need and nothing else:
+#   * Python 3.12 (Ubuntu 24.04) and uv, for the harness;
+#   * Node.js 24, for the Agent Evaluations CLI (the agent_cli surface, PLAN §9.3; P9.2);
+#   * Azure CLI from the Microsoft package repository, for azure/login with OIDC.
+# A `runner` user owns /opt/actions-runner. Registering the runner with GitHub is a separate step,
+# run from your machine: infra/azure/register-runner.sh (it downloads and verifies the runner).
+# Secrets never pass through this file; jobs use the VM's managed identity for Key Vault.
+# =============================================================================================
+package_update: true
+package_upgrade: true
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - git
+  - gnupg
+  - jq
+  - lsb-release
+  - pipx
+  - python3-venv
+  - unzip
+
+users:
+  - default
+  - name: runner
+    gecos: GitHub Actions runner
+    shell: /bin/bash
+    lock_passwd: true
+
+snap:
+  commands:
+    - snap install node --classic --channel=24
+
+runcmd:
+  # Azure CLI from packages.microsoft.com (Microsoft Learn: "Install the Azure CLI on Linux", Option 2).
+  - mkdir -p /etc/apt/keyrings
+  - curl -sLS https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg
+  - chmod go+r /etc/apt/keyrings/microsoft.gpg
+  - >-
+    printf 'Types: deb\nURIs: https://packages.microsoft.com/repos/azure-cli/\nSuites: %s\nComponents: main\nArchitectures: %s\nSigned-by: /etc/apt/keyrings/microsoft.gpg\n'
+    "$(lsb_release -cs)" "$(dpkg --print-architecture)" > /etc/apt/sources.list.d/azure-cli.sources
+  - apt-get update && apt-get install -y azure-cli
+  # uv for the runner user (the harness pins its Python dependencies in uv.lock).
+  - sudo -u runner pipx install uv
+  - sudo -u runner pipx ensurepath
+  # Runner home; register-runner.sh fills it.
+  - mkdir -p /opt/actions-runner && chown runner:runner /opt/actions-runner
+  - echo "copilot-fabriciq-evals runner prerequisites installed" > /var/log/copilot-evals-cloud-init.done

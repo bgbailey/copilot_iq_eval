@@ -1,0 +1,114 @@
+# =============================================================================================
+# Harness settings — EXAMPLE. Copy to config/settings.toml (gitignored) and fill in.
+#
+#   cp config/settings.example.toml config/settings.toml
+#
+# Rules
+# - Values here are tenant-specific but NOT secret. Secrets (token caches, the daemon certificate,
+#   the Teams webhook URL) live in Azure Key Vault; this file only names them.
+# - Never commit config/settings.toml.
+# - API endpoints, scopes and field names are not settings: they live in config/contracts.yaml.
+# - Every key is optional; defaults come from docs/PLAN.md. Unknown keys are rejected.
+# - Override the path with the COPILOT_EVALS_SETTINGS environment variable.
+#
+# Schema: src/copilot_evals/config.py
+# =============================================================================================
+
+[tenant]
+tenant_id = "00000000-0000-0000-0000-000000000000"
+# Fills the {tenant_domain} placeholder in evals/golden/personas.yaml.
+tenant_domain = "contoso.onmicrosoft.com"
+
+[azure]
+subscription_id = "00000000-0000-0000-0000-000000000000"
+key_vault_url = "https://<key-vault-name>.vault.azure.net/"
+
+[apps]
+# Entra ID app registrations (PLAN §11). Client IDs are identifiers, not secrets.
+public_client_id = "00000000-0000-0000-0000-000000000000"   # copilot-eval-public (delegated)
+daemon_client_id = "00000000-0000-0000-0000-000000000000"   # copilot-eval-daemon (app-only)
+daemon_certificate_name = "copilot-eval-daemon"             # certificate name in Key Vault
+setup_client_id = "00000000-0000-0000-0000-000000000000"    # copilot-eval-setup (evals deploy)
+
+[fabric]
+# Capacity, workspaces and lakehouses (PLAN §4.1, §9.8). `evals deploy fabric` creates the workspaces
+# and lakehouses if they do not exist. Capacity: display name or ID; F64 or larger avoids Power BI
+# Pro licences for the personas.
+capacity = "<capacity display name>"
+certified_workspace = "ws-eval-certified"
+sandbox_workspace = "ws-eval-sandbox"
+results_workspace = "ws-eval-results"
+gold_lakehouse = "lh_gold"
+sandbox_lakehouse = "lh_sandbox"
+results_lakehouse = "lh_eval"
+enable_monitoring = true
+notebook_timeout_s = 3600
+
+[workiq.sites]
+# SharePoint sites for the Work IQ content pack (workiq/content.yaml, PLAN §4.4). Create them by hand
+# with the members content.yaml lists (PLAN §6 T20); `evals deploy workiq` uploads the documents.
+planning = "https://<tenant>.sharepoint.com/sites/eval-planning"
+all_company = "https://<tenant>.sharepoint.com/sites/eval-all-company"
+
+[evidence]
+# Engine-log correlation (PLAN §9.5). The window is [t0 - window_before_s, t1 + window_after_s].
+max_wait_s = 900
+poll_interval_s = 20
+window_before_s = 5
+window_after_s = 30
+
+# One workspace-monitoring Eventhouse per monitored workspace. Both are queried for every attempt,
+# because decoy hits only appear in the sandbox workspace's logs. Confirm the values in spike S2.
+[evidence.monitoring.ws-eval-certified]
+query_uri = "https://<eventhouse-query-uri>.kusto.fabric.microsoft.com"
+database = "<monitoring KQL database name>"
+
+[evidence.monitoring.ws-eval-sandbox]
+query_uri = "https://<eventhouse-query-uri>.kusto.fabric.microsoft.com"
+database = "<monitoring KQL database name>"
+
+[evaluation]
+# Where the evaluators in evals/evaluators/ run (ADR-009, docs/evaluation-paths.md):
+#   "foundry"  Microsoft Foundry Evaluations: cloud runs, a report page per run, results kept in Foundry.
+#   "local"    In the harness process (GitHub Actions runner or your machine), with no Foundry project.
+# `evals run --backend` overrides it for one run; in GitHub Actions, set the EVALS_BACKEND variable.
+backend = "foundry"
+
+[foundry]
+# Microsoft Foundry project, used only when [evaluation] backend = "foundry" (ADR-007). It hosts the
+# evaluator catalog, every evaluation run and its results. Pick a region that supports Foundry batch
+# evaluations (PLAN §6 T5).
+endpoint = "https://<foundry-resource>.services.ai.azure.com/api/projects/<project-name>"
+judge_deployment = "gpt-5-mini"   # AI judge, extraction step, and deployment_name for code-based evaluators
+eval_name_prefix = "copilot-fabriciq-evals"
+dataset_name_prefix = "copilot-fabriciq-evals"
+poll_interval_s = 10
+run_timeout_s = 1800
+
+[azure_openai]
+# Model deployments called directly through the Azure OpenAI v1 API with Microsoft Entra ID sign-in
+# (PLAN §9.3.1, §9.12). The L1 reference orchestrator uses them on both backends; the local backend
+# also calls the AI judge here. An Azure OpenAI or a Microsoft Foundry resource works. Leave endpoint
+# empty to run the local backend without an AI judge: its results are then INCONCLUSIVE.
+endpoint = "https://<resource>.openai.azure.com/openai/v1/"
+orchestrator_model = "gpt-5-mini"   # L1 reference orchestrator
+max_tool_calls = 12
+judge_model = "gpt-5-mini"          # AI judge and extraction step on the local backend
+judge_max_workers = 8               # rows scored in parallel by the local backend
+timeout_s = 120
+
+[agent]
+# The declarative agent under test (PLAN §9.3.2). Recorded after P4.2 provisions it.
+m365_title_id = ""
+m365_agent_id = ""
+cli_timeout_s = 600
+
+[chat_api]
+# Microsoft 365 Copilot Chat API adapter (PLAN §9.3.3).
+time_zone = "America/New_York"
+max_requests_per_second = 1.0
+read_timeout_s = 180
+
+[alerts]
+# Name of the Key Vault secret that holds the Teams Workflows webhook URL (P8.3).
+teams_webhook_keyvault_name = "teams-eval-alerts-webhook"

@@ -1,0 +1,55 @@
+name: Build task
+description: A task from the implementation plan for GitHub Copilot or a person to implement.
+title: "[P?.?] "
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Build tasks from PLAN §8 are created automatically from `docs/backlog/tasks.yaml` by `scripts/bootstrap_github.py`.
+        Use this form only for a task that is **not** in the backlog yet, and add it to `docs/backlog/tasks.yaml` in the pull request that implements it.
+  - type: input
+    id: task-id
+    attributes:
+      label: Task ID
+      description: Next free ID in the phase, for example P2.7.
+      placeholder: P2.7
+    validations:
+      required: true
+  - type: input
+    id: plan
+    attributes:
+      label: Plan sections
+      description: The sections of docs/PLAN.md this task implements.
+      placeholder: "§8 Phase 2, §9.6.1"
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What the task delivers and why it is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Copilot prompt
+      description: Instructions for GitHub Copilot. Reference plan sections rather than restating them, and name the files to create or change.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Describe the first criterion
+        - [ ] `uv run ruff check && uv run mypy src && uv run pytest` pass
+        - [ ] docs and ADRs updated if behaviour or contracts changed
+    validations:
+      required: true
+  - type: dropdown
+    id: executor
+    attributes:
+      label: Who can do it
+      options:
+        - GitHub Copilot (agent mode or cloud agent)
+        - Manual - needs a person in the tenant
+    validations:
+      required: true

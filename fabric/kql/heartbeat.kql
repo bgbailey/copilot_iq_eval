@@ -1,0 +1,16 @@
+// =============================================================================================
+// Completeness check for engine-log evidence (PLAN §9.5 rule 3)
+//
+// After an attempt ends (t1), the harness sends `EVALUATE ROW("hb", 1) // eval-hb {attempt_id}`
+// as the persona to each workspace the persona can access, then polls this query. Once the
+// heartbeat row is visible, earlier rows for the window are assumed ingested (validated by
+// spike S2). If it never arrives within settings.evidence.max_wait_s, routing is INCONCLUSIVE,
+// never FAIL.
+//   {t1}          attempt end in UTC, ISO 8601
+//   {upn}         the persona's user principal name
+//   {attempt_id}  the attempt's UUID
+// =============================================================================================
+SemanticModelLogs
+| where Timestamp > datetime({t1})
+| where ExecutingUser =~ "{upn}" and EventText contains "eval-hb {attempt_id}"
+| take 1
