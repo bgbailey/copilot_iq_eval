@@ -1,0 +1,79 @@
+// Copilot Chat x Fabric IQ evaluation: ready-made queries for a KQL queryset or Real-Time Dashboard tiles.
+// Database: copilot_eval (the telemetry Eventhouse). Functions come from kql/setup.kql.
+// Each query is separated by a blank line: select one and Run.
+
+// 1. Runs: pass rate, accuracy, routing and latency per scoring option
+RunSummary(30d)
+| project FirstAsk, RunName, Backend, Asks, PassRate, ValueAccuracy, ArtifactAccuracy, ModelAccuracy, DecoyHits, Errors, LatencyP50Ms, LatencyP95Ms, FoundryReportUrl
+
+// 2. Pass rate trend by scoring option
+RunSummary(90d)
+| project FirstAsk, Backend, PassRate
+| render timechart
+
+// 3. Live: asks streaming in while a run is in progress (before scoring)
+LiveAsks(2h)
+
+// 4. End to end for the latest run: each Copilot ask, the DAX Fabric IQ ran for it, and the verdict
+let run = toscalar(EvalRun | top 1 by EndedUtc desc | project RunId);
+EvalAsk
+| where RunId == run
+| project AskId, QuestionId, Attempt, AskStartUtc, LatencyMs, ArtifactNames, Answer = substring(Answer, 0, 200)
+| lookup kind=leftouter (
+    FabricIqQuery
+    | where RunId == run
+    | summarize DaxQueries = count(), DaxMs = sum(DurationMs), Models = make_set(ItemName), Dax = make_list(substring(Dax, 0, 400)) by AskId
+  ) on AskId
+| lookup kind=leftouter (LatestResults() | where RunId == run and Backend == "fabric-native" | project AskId, Verdict, Reasons) on AskId
+| order by AskStartUtc asc
+
+// 5. One ask as a timeline: the question, the answer and every DAX query in time order
+let ask = toscalar(EvalAsk | top 1 by AskStartUtc desc | project AskId);
+AskTimeline(ask)
+
+// 6. Failures and why (last 7 days)
+LatestResults()
+| where AskStartUtc > ago(7d) and Verdict != "PASS"
+| project AskStartUtc, Backend, QuestionId, Verdict, ExpectedModel, QueriedModels, CitedArtifacts, ExpectedValue, ExtractedValue, Reasons, JudgeNotes
+| order by AskStartUtc desc
+
+// 7. Routing at the engine level: expected semantic model vs models Fabric IQ queried
+RoutingMatrix(30d)
+
+// 8. Latency per day: Copilot round trip vs time spent in DAX
+LatestResults()
+| where AskStartUtc > ago(30d) and isnotnull(LatencyMs)
+| summarize AnswerP50 = percentile(LatencyMs, 50), AnswerP95 = percentile(LatencyMs, 95), DaxP50 = percentile(DaxTotalMs, 50) by bin(AskStartUtc, 1d)
+| render timechart
+
+// 9. Slowest DAX queries Fabric IQ generated
+FabricIqQuery
+| where QueryTimeUtc > ago(30d)
+| top 20 by DurationMs desc
+| project QueryTimeUtc, AskId, ItemName, DurationMs, Dax = substring(Dax, 0, 500)
+
+// 10. Question stability across runs (flaky routing shows up as more than one model set)
+QuestionStability(30d)
+
+// 11. Harness stage timings for the latest run
+let run = toscalar(EvalRun | top 1 by EndedUtc desc | project RunId);
+StageDurations(run)
+
+// 12. Do Option 1 and Option 2 agree? (asks scored by both)
+LatestResults()
+| where AskStartUtc > ago(30d)
+| summarize Backends = dcount(Backend), Verdicts = make_set(Verdict) by AskId
+| where Backends == 2
+| summarize Asks = count(), Agree = countif(array_length(Verdicts) == 1)
+| extend AgreementRate = round(todouble(Agree) / Asks, 4)
+
+// 13. Every check behind a verdict (EvalScore), for one ask
+let ask = toscalar(EvalAsk | top 1 by AskStartUtc desc | project AskId);
+EvalScore
+| where AskId == ask
+| summarize arg_max(ScoredUtc, *) by Backend, Check
+| project Backend, Check, Evaluator, Outcome, Score, Reason
+
+// 14. Live vs simulated data
+EvalRun
+| summarize Runs = count(), LastRun = max(EndedUtc) by Surface

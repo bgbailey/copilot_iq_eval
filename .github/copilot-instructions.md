@@ -1,38 +1,20 @@
-# Copilot instructions — copilot-fabriciq-evals
+# Instructions for GitHub Copilot in this repository
 
-## What this repo is
-An automated evaluation harness proving that Microsoft 365 Copilot surfaces route business questions to the
-intended Power BI semantic model (via Fabric IQ) and return the expected value, consistently, per persona.
-Read docs/PLAN.md before any task. Section numbers in issues refer to that plan.
+This repository evaluates Microsoft 365 Copilot Chat answers that come from Power BI semantic models through
+Fabric IQ. A Python harness (`src/cfeval`) asks golden questions through the Copilot Chat API, captures the DAX
+from Fabric workspace monitoring, scores answers (Option 1: Python checks plus a Foundry-hosted judge model;
+Option 2: Microsoft Foundry Evaluations), and writes telemetry to a Fabric Eventhouse. A Fabric app (`app/`)
+shows the results.
 
-## Non-negotiables
-- Never invent API endpoints, scopes, headers or response fields. Use only config/contracts.yaml (filled from
-  docs/PLAN.md §9 and docs/decisions/ADR-*.md). If something is missing, add a TODO(spike-Sx) and stop.
-- Verdicts come only from the evaluators in evals/evaluators/, run by Microsoft Foundry Evaluations (the default
-  backend) or by the local backend (ADR-007, ADR-009). Never add scoring logic anywhere else, and never make an
-  evaluator depend on the backend that runs it. Code-based evaluators are self-contained grade() files (standard
-  library and the Foundry sandbox packages only, no network). The AI judge (prompt-based evaluators) is only for
-  behaviour classification and expected-blind value extraction, and never sees the expected value.
-- Never commit secrets, tokens, token caches or tenant-specific IDs. Settings come from config/settings.toml
-  (gitignored) and Key Vault. Use synthetic data only; no customer data or names.
-- All time values are UTC (datetime with tzinfo). All numeric comparisons use decimal.Decimal.
-- Every external call goes through an adapter with timeouts, retries (tenacity, honour Retry-After) and
-  structured JSON logging (attempt_id, case_id, persona, surface). Missing evidence => the evaluator raises, so the
-  attempt is INCONCLUSIVE, never FAIL.
-
-## Stack and conventions
-- Python 3.12, uv, src/ layout, Typer CLI `evals`, pydantic v2 models in src/copilot_evals/schemas.py,
-  httpx (async), msal, azure-identity, azure-keyvault-secrets, azure-kusto-data, azure-ai-projects, mcp, openai,
-  deltalake, pandas.
-- ruff (line length 120), mypy --strict on src/, pytest with fakes for every adapter; tests/unit must not touch the network.
-- Contract tests replay recorded fixtures under tests/fixtures/; re-record only via `evals fixtures record`.
-- Evaluator definitions live in evals/evaluators/ (evaluators.yaml, eval-definition.yaml); `evals validate` checks
-  them offline, `evals foundry sync` registers them in Foundry and `evals score` runs them locally. Unit-test every
-  evaluator by executing its file as the sandbox does.
-- Fabric notebooks: PySpark, parameter cell first, idempotent, no hard-coded workspace IDs.
-- Keep agents/policy/routing-policy.md as the single routing policy; scripts/build_agent.py regenerates agent
-  instructions and fails CI on drift.
-
-## Definition of done for any task
-- Acceptance criteria in the issue are met; unit tests added; `uv run ruff check && uv run mypy src && uv run pytest` pass.
-- docs/ updated when behaviour or contracts change; new decisions recorded as ADRs.
+## Conventions
+- Python 3.10+, standard library plus `requests` at import time; import optional SDKs (msal, azure-kusto,
+  openai, azure-identity, azure-ai-projects) lazily inside functions so offline runs and tests need nothing else.
+- `src/cfeval/scorers.py` must stay standard-library only: it is bundled into Foundry code evaluators.
+- Table schemas live only in `src/cfeval/schema.py`. Regenerate `kql/setup.kql`, the app contract
+  (`python tools/gen_app_contract.py`) and the reference connector entities after any change.
+- Keep this a lean community accelerator, not a production testing platform. The documented, scripted live
+  demo is the acceptance test. Do not add broad unit-test suites, test matrices or production scaffolding.
+  Keep runtime identity, evidence-integrity and error guards; use only essential build/offline smoke checks.
+- App logic in `metrics.ts`, `normalize.ts` and `format.ts` stays free of runtime imports (type-only imports).
+- Use Contoso sample names. Describe environments generically ("demo tenant", "demo Azure subscription").
+- User-facing text is plain and specific; KQL and Python identifiers keep their existing naming.

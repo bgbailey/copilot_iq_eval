@@ -1,0 +1,140 @@
+// Copilot Chat x Fabric IQ evaluation: Eventhouse setup for database 'copilot_eval'
+// Run each command in a KQL queryset (select a command, then Run), or run: python -m cfeval setup-eventhouse
+// Only ingestion tuning is best effort. OneLake availability is required for the Fabric app.
+
+.create-merge table EvalRun (RunId:string, RunName:string, EvalOption:string, Surface:string, StartedUtc:datetime, EndedUtc:datetime, Status:string, Host:string, HarnessVersion:string, GoldenSetName:string, GoldenSetHash:string, QuestionCount:int, AskCount:int, Repeats:int, ExplainMode:string, TraceEnabled:int, TestUser:string, JudgeModel:string, FoundryEvalId:string, FoundryRunId:string, FoundryReportUrl:string, PassRate:real, ValueAccuracy:real, ArtifactAccuracy:real, ModelAccuracy:real, LatencyP50Ms:real, LatencyP95Ms:real, Notes:string) with (folder="cfeval", docstring="One row per evaluation run (written when the run finishes).")
+
+.create-merge table EvalQuestion (RunId:string, QuestionId:string, Question:string, Category:string, ExpectedArtifact:string, ArtifactAliases:string, ExpectedModel:string, Decoys:string, ExpectedValue:real, Unit:string, RelTol:real, AbsTol:real, ExpectedAnswer:string, ReferenceDax:string, Criticality:string) with (folder="cfeval", docstring="Snapshot of the golden set used by each run.")
+
+.create-merge table EvalAsk (RunId:string, AskId:string, QuestionId:string, Attempt:int, Question:string, TestUser:string, ConversationId:string, AskStartUtc:datetime, AskEndUtc:datetime, LatencyMs:real, Status:string, HttpStatus:int, Error:string, Answer:string, AnswerChars:int, Artifacts:dynamic, ArtifactNames:string, PowerBiCited:int, ExplainMode:string, Why:string, WhyJson:dynamic, WhyLatencyMs:real, AttributionCount:int) with (folder="cfeval", docstring="One row per question asked: the answer, cited artifacts and the follow-up 'why'.")
+
+.create-merge table FabricIqQuery (RunId:string, AskId:string, QueryTimeUtc:datetime, OffsetMs:real, WorkspaceId:string, ItemId:string, ItemName:string, ApplicationName:string, OperationName:string, DurationMs:real, Dax:string, DaxChars:int, CorrelationId:string) with (folder="cfeval", docstring="DAX queries Fabric IQ ran for each ask, from workspace monitoring (SemanticModelLogs).")
+
+.create-merge table EvalScore (RunId:string, AskId:string, QuestionId:string, Backend:string, Check:string, Evaluator:string, Score:real, Outcome:string, Reason:string, Details:dynamic, ScoredUtc:datetime) with (folder="cfeval", docstring="One row per check per ask, from either scoring backend.")
+
+.create-merge table EvalResult (RunId:string, AskId:string, QuestionId:string, Attempt:int, Question:string, Category:string, Criticality:string, TestUser:string, AskStartUtc:datetime, Backend:string, Verdict:string, ValueScore:real, ArtifactScore:real, ModelScore:real, JudgeAnswerScore:real, WhyScore:real, DecoyHit:int, PowerBiCited:int, ExpectedArtifact:string, CitedArtifacts:string, ExpectedModel:string, QueriedModels:string, ExpectedValue:real, ExtractedValue:real, ValueErrorPct:real, LatencyMs:real, WhyLatencyMs:real, DaxQueryCount:int, DaxTotalMs:real, DaxMaxMs:real, FirstDaxOffsetMs:real, TraceStatus:string, AnswerPreview:string, WhyPreview:string, Reasons:string, JudgeNotes:string, Error:string, ScoredUtc:datetime) with (folder="cfeval", docstring="One row per ask per scoring backend: verdict, accuracy, routing, DAX and latency in one place.")
+
+.create-merge table EvalEvent (RunId:string, AskId:string, EventTimeUtc:datetime, Stage:string, DurationMs:real, Status:string, Details:dynamic) with (folder="cfeval", docstring="Stage timings for end-to-end telemetry: ask, follow-up, trace, scoring, publish.")
+
+.create-or-alter table EvalRun ingestion json mapping "EvalRun_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"RunName","Properties":{"Path":"$.RunName"}},{"column":"EvalOption","Properties":{"Path":"$.EvalOption"}},{"column":"Surface","Properties":{"Path":"$.Surface"}},{"column":"StartedUtc","Properties":{"Path":"$.StartedUtc"}},{"column":"EndedUtc","Properties":{"Path":"$.EndedUtc"}},{"column":"Status","Properties":{"Path":"$.Status"}},{"column":"Host","Properties":{"Path":"$.Host"}},{"column":"HarnessVersion","Properties":{"Path":"$.HarnessVersion"}},{"column":"GoldenSetName","Properties":{"Path":"$.GoldenSetName"}},{"column":"GoldenSetHash","Properties":{"Path":"$.GoldenSetHash"}},{"column":"QuestionCount","Properties":{"Path":"$.QuestionCount"}},{"column":"AskCount","Properties":{"Path":"$.AskCount"}},{"column":"Repeats","Properties":{"Path":"$.Repeats"}},{"column":"ExplainMode","Properties":{"Path":"$.ExplainMode"}},{"column":"TraceEnabled","Properties":{"Path":"$.TraceEnabled"}},{"column":"TestUser","Properties":{"Path":"$.TestUser"}},{"column":"JudgeModel","Properties":{"Path":"$.JudgeModel"}},{"column":"FoundryEvalId","Properties":{"Path":"$.FoundryEvalId"}},{"column":"FoundryRunId","Properties":{"Path":"$.FoundryRunId"}},{"column":"FoundryReportUrl","Properties":{"Path":"$.FoundryReportUrl"}},{"column":"PassRate","Properties":{"Path":"$.PassRate"}},{"column":"ValueAccuracy","Properties":{"Path":"$.ValueAccuracy"}},{"column":"ArtifactAccuracy","Properties":{"Path":"$.ArtifactAccuracy"}},{"column":"ModelAccuracy","Properties":{"Path":"$.ModelAccuracy"}},{"column":"LatencyP50Ms","Properties":{"Path":"$.LatencyP50Ms"}},{"column":"LatencyP95Ms","Properties":{"Path":"$.LatencyP95Ms"}},{"column":"Notes","Properties":{"Path":"$.Notes"}}]'
+
+.create-or-alter table EvalQuestion ingestion json mapping "EvalQuestion_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"QuestionId","Properties":{"Path":"$.QuestionId"}},{"column":"Question","Properties":{"Path":"$.Question"}},{"column":"Category","Properties":{"Path":"$.Category"}},{"column":"ExpectedArtifact","Properties":{"Path":"$.ExpectedArtifact"}},{"column":"ArtifactAliases","Properties":{"Path":"$.ArtifactAliases"}},{"column":"ExpectedModel","Properties":{"Path":"$.ExpectedModel"}},{"column":"Decoys","Properties":{"Path":"$.Decoys"}},{"column":"ExpectedValue","Properties":{"Path":"$.ExpectedValue"}},{"column":"Unit","Properties":{"Path":"$.Unit"}},{"column":"RelTol","Properties":{"Path":"$.RelTol"}},{"column":"AbsTol","Properties":{"Path":"$.AbsTol"}},{"column":"ExpectedAnswer","Properties":{"Path":"$.ExpectedAnswer"}},{"column":"ReferenceDax","Properties":{"Path":"$.ReferenceDax"}},{"column":"Criticality","Properties":{"Path":"$.Criticality"}}]'
+
+.create-or-alter table EvalAsk ingestion json mapping "EvalAsk_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"AskId","Properties":{"Path":"$.AskId"}},{"column":"QuestionId","Properties":{"Path":"$.QuestionId"}},{"column":"Attempt","Properties":{"Path":"$.Attempt"}},{"column":"Question","Properties":{"Path":"$.Question"}},{"column":"TestUser","Properties":{"Path":"$.TestUser"}},{"column":"ConversationId","Properties":{"Path":"$.ConversationId"}},{"column":"AskStartUtc","Properties":{"Path":"$.AskStartUtc"}},{"column":"AskEndUtc","Properties":{"Path":"$.AskEndUtc"}},{"column":"LatencyMs","Properties":{"Path":"$.LatencyMs"}},{"column":"Status","Properties":{"Path":"$.Status"}},{"column":"HttpStatus","Properties":{"Path":"$.HttpStatus"}},{"column":"Error","Properties":{"Path":"$.Error"}},{"column":"Answer","Properties":{"Path":"$.Answer"}},{"column":"AnswerChars","Properties":{"Path":"$.AnswerChars"}},{"column":"Artifacts","Properties":{"Path":"$.Artifacts"}},{"column":"ArtifactNames","Properties":{"Path":"$.ArtifactNames"}},{"column":"PowerBiCited","Properties":{"Path":"$.PowerBiCited"}},{"column":"ExplainMode","Properties":{"Path":"$.ExplainMode"}},{"column":"Why","Properties":{"Path":"$.Why"}},{"column":"WhyJson","Properties":{"Path":"$.WhyJson"}},{"column":"WhyLatencyMs","Properties":{"Path":"$.WhyLatencyMs"}},{"column":"AttributionCount","Properties":{"Path":"$.AttributionCount"}}]'
+
+.create-or-alter table FabricIqQuery ingestion json mapping "FabricIqQuery_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"AskId","Properties":{"Path":"$.AskId"}},{"column":"QueryTimeUtc","Properties":{"Path":"$.QueryTimeUtc"}},{"column":"OffsetMs","Properties":{"Path":"$.OffsetMs"}},{"column":"WorkspaceId","Properties":{"Path":"$.WorkspaceId"}},{"column":"ItemId","Properties":{"Path":"$.ItemId"}},{"column":"ItemName","Properties":{"Path":"$.ItemName"}},{"column":"ApplicationName","Properties":{"Path":"$.ApplicationName"}},{"column":"OperationName","Properties":{"Path":"$.OperationName"}},{"column":"DurationMs","Properties":{"Path":"$.DurationMs"}},{"column":"Dax","Properties":{"Path":"$.Dax"}},{"column":"DaxChars","Properties":{"Path":"$.DaxChars"}},{"column":"CorrelationId","Properties":{"Path":"$.CorrelationId"}}]'
+
+.create-or-alter table EvalScore ingestion json mapping "EvalScore_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"AskId","Properties":{"Path":"$.AskId"}},{"column":"QuestionId","Properties":{"Path":"$.QuestionId"}},{"column":"Backend","Properties":{"Path":"$.Backend"}},{"column":"Check","Properties":{"Path":"$.Check"}},{"column":"Evaluator","Properties":{"Path":"$.Evaluator"}},{"column":"Score","Properties":{"Path":"$.Score"}},{"column":"Outcome","Properties":{"Path":"$.Outcome"}},{"column":"Reason","Properties":{"Path":"$.Reason"}},{"column":"Details","Properties":{"Path":"$.Details"}},{"column":"ScoredUtc","Properties":{"Path":"$.ScoredUtc"}}]'
+
+.create-or-alter table EvalResult ingestion json mapping "EvalResult_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"AskId","Properties":{"Path":"$.AskId"}},{"column":"QuestionId","Properties":{"Path":"$.QuestionId"}},{"column":"Attempt","Properties":{"Path":"$.Attempt"}},{"column":"Question","Properties":{"Path":"$.Question"}},{"column":"Category","Properties":{"Path":"$.Category"}},{"column":"Criticality","Properties":{"Path":"$.Criticality"}},{"column":"TestUser","Properties":{"Path":"$.TestUser"}},{"column":"AskStartUtc","Properties":{"Path":"$.AskStartUtc"}},{"column":"Backend","Properties":{"Path":"$.Backend"}},{"column":"Verdict","Properties":{"Path":"$.Verdict"}},{"column":"ValueScore","Properties":{"Path":"$.ValueScore"}},{"column":"ArtifactScore","Properties":{"Path":"$.ArtifactScore"}},{"column":"ModelScore","Properties":{"Path":"$.ModelScore"}},{"column":"JudgeAnswerScore","Properties":{"Path":"$.JudgeAnswerScore"}},{"column":"WhyScore","Properties":{"Path":"$.WhyScore"}},{"column":"DecoyHit","Properties":{"Path":"$.DecoyHit"}},{"column":"PowerBiCited","Properties":{"Path":"$.PowerBiCited"}},{"column":"ExpectedArtifact","Properties":{"Path":"$.ExpectedArtifact"}},{"column":"CitedArtifacts","Properties":{"Path":"$.CitedArtifacts"}},{"column":"ExpectedModel","Properties":{"Path":"$.ExpectedModel"}},{"column":"QueriedModels","Properties":{"Path":"$.QueriedModels"}},{"column":"ExpectedValue","Properties":{"Path":"$.ExpectedValue"}},{"column":"ExtractedValue","Properties":{"Path":"$.ExtractedValue"}},{"column":"ValueErrorPct","Properties":{"Path":"$.ValueErrorPct"}},{"column":"LatencyMs","Properties":{"Path":"$.LatencyMs"}},{"column":"WhyLatencyMs","Properties":{"Path":"$.WhyLatencyMs"}},{"column":"DaxQueryCount","Properties":{"Path":"$.DaxQueryCount"}},{"column":"DaxTotalMs","Properties":{"Path":"$.DaxTotalMs"}},{"column":"DaxMaxMs","Properties":{"Path":"$.DaxMaxMs"}},{"column":"FirstDaxOffsetMs","Properties":{"Path":"$.FirstDaxOffsetMs"}},{"column":"TraceStatus","Properties":{"Path":"$.TraceStatus"}},{"column":"AnswerPreview","Properties":{"Path":"$.AnswerPreview"}},{"column":"WhyPreview","Properties":{"Path":"$.WhyPreview"}},{"column":"Reasons","Properties":{"Path":"$.Reasons"}},{"column":"JudgeNotes","Properties":{"Path":"$.JudgeNotes"}},{"column":"Error","Properties":{"Path":"$.Error"}},{"column":"ScoredUtc","Properties":{"Path":"$.ScoredUtc"}}]'
+
+.create-or-alter table EvalEvent ingestion json mapping "EvalEvent_json" '[{"column":"RunId","Properties":{"Path":"$.RunId"}},{"column":"AskId","Properties":{"Path":"$.AskId"}},{"column":"EventTimeUtc","Properties":{"Path":"$.EventTimeUtc"}},{"column":"Stage","Properties":{"Path":"$.Stage"}},{"column":"DurationMs","Properties":{"Path":"$.DurationMs"}},{"column":"Status","Properties":{"Path":"$.Status"}},{"column":"Details","Properties":{"Path":"$.Details"}}]'
+
+// optional: lower queued-ingestion latency for demos
+.alter database ['copilot_eval'] policy ingestionbatching '{"MaximumBatchingTimeSpan":"00:00:10","MaximumNumberOfItems":50,"MaximumRawDataSizeMB":100}'
+// optional: streaming ingestion (the harness falls back to queued ingestion)
+.alter database ['copilot_eval'] policy streamingingestion enable
+.alter-merge table EvalRun policy mirroring dataformat=parquet with (IsEnabled=true, TargetLatencyInMinutes=5)
+
+.alter-merge table EvalQuestion policy mirroring dataformat=parquet with (IsEnabled=true, TargetLatencyInMinutes=5)
+
+.alter-merge table FabricIqQuery policy mirroring dataformat=parquet with (IsEnabled=true, TargetLatencyInMinutes=5)
+
+.alter-merge table EvalResult policy mirroring dataformat=parquet with (IsEnabled=true, TargetLatencyInMinutes=5)
+
+.alter-merge table EvalEvent policy mirroring dataformat=parquet with (IsEnabled=true, TargetLatencyInMinutes=5)
+
+.create-or-alter function with (folder="cfeval", docstring="EvalResult with only the latest score per ask and backend (rescoring appends rows)")
+LatestResults() {
+    EvalResult
+    | summarize arg_max(ScoredUtc, *) by AskId, Backend
+}
+
+.create-or-alter function with (folder="cfeval", docstring="Live view of asks as they stream in during a run (before scoring)")
+LiveAsks(lookback:timespan = 2h) {
+    EvalAsk
+    | where AskStartUtc > ago(lookback)
+    | project AskStartUtc, RunId, AskId, QuestionId, Attempt, Status, LatencyMs, WhyLatencyMs, ArtifactNames, PowerBiCited, AnswerPreview = substring(Answer, 0, 300)
+    | order by AskStartUtc desc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="One row per run and scoring backend: accuracy, routing, DAX and latency")
+RunSummary(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | summarize
+        Asks = count(),
+        Passed = countif(Verdict == "PASS"),
+        Failed = countif(Verdict == "FAIL"),
+        Inconclusive = countif(Verdict == "INCONCLUSIVE"),
+        ValueAccuracy = avgif(ValueScore, Verdict != "ERROR" and ValueScore in (0.0, 1.0)),
+        ArtifactAccuracy = avgif(ArtifactScore, Verdict != "ERROR" and ArtifactScore in (0.0, 1.0)),
+        ModelAccuracy = avgif(ModelScore, Verdict != "ERROR" and ModelScore in (0.0, 1.0)),
+        DecoyHits = sum(DecoyHit),
+        Errors = countif(Verdict == "ERROR"),
+        LatencyP50Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 50),
+        LatencyP95Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 95),
+        AvgDaxQueries = avg(DaxQueryCount),
+        AvgDaxMs = avg(DaxTotalMs),
+        FirstAsk = min(AskStartUtc),
+        LastAsk = max(AskStartUtc)
+        by RunId, Backend
+    | extend PassRate = round(todouble(Passed) / Asks, 4)
+    | join kind=leftouter (EvalRun | summarize arg_max(EndedUtc, RunName, EvalOption, Host, GoldenSetName, TestUser, FoundryReportUrl) by RunId) on RunId
+    | project-away RunId1
+    | order by FirstAsk desc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="A Copilot ask and the DAX Fabric IQ ran for it, in time order")
+AskTimeline(askId:string) {
+    let asks = EvalAsk | where AskId == askId;
+    let starts = asks | project AskId, RunId, EventTimeUtc = AskStartUtc, Kind = "ask.start", Model = "", DurationMs = LatencyMs, Detail = Question;
+    let ends = asks | project AskId, RunId, EventTimeUtc = AskEndUtc, Kind = "ask.end", Model = "", DurationMs = real(null), Detail = substring(Answer, 0, 1000);
+    let dax = FabricIqQuery | where AskId == askId | project AskId, RunId, EventTimeUtc = QueryTimeUtc, Kind = "dax", Model = ItemName, DurationMs, Detail = Dax;
+    union starts, ends, dax
+    | order by EventTimeUtc asc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="Stability of each question across runs: pass rate, cited artifacts, queried models, value spread and latency")
+QuestionStability(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | summarize
+        Runs = dcount(RunId),
+        Asks = count(),
+        PassRate = round(avg(iff(Verdict == "PASS", 1.0, 0.0)), 4),
+        DistinctCitedSets = dcount(CitedArtifacts),
+        DistinctModelSets = dcount(QueriedModels),
+        ValueMin = min(ExtractedValue),
+        ValueMax = max(ExtractedValue),
+        LatencyP50Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 50),
+        LatencyP95Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 95)
+        by QuestionId, Question, Backend
+    | order by PassRate asc, QuestionId asc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="Per-ask latency split: time in DAX versus the rest of the Copilot round trip (approximate when queries overlap)")
+LatencyBreakdown(runId:string) {
+    LatestResults()
+    | where RunId == runId
+    | extend NonDaxMs = max_of(LatencyMs - DaxTotalMs, 0.0)
+    | project AskId, QuestionId, Backend, LatencyMs, DaxTotalMs, NonDaxMs, DaxQueryCount, FirstDaxOffsetMs, WhyLatencyMs
+    | order by LatencyMs desc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="Harness stage timings for a run: ask, follow-up, trace, scoring and publish")
+StageDurations(runId:string) {
+    EvalEvent
+    | where RunId == runId
+    | summarize Count = count(), TotalMs = sum(DurationMs), P50Ms = percentile(DurationMs, 50), P95Ms = percentile(DurationMs, 95), Failures = countif(Status != "ok") by Stage
+    | order by TotalMs desc
+}
+
+.create-or-alter function with (folder="cfeval", docstring="Semantic models Fabric IQ queried, by expected model: shows routing at the engine level")
+RoutingMatrix(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | extend Queried = iff(isempty(QueriedModels), "(none observed)", QueriedModels)
+    | summarize Asks = count() by ExpectedModel, Queried, Backend
+    | order by ExpectedModel asc, Asks desc
+}

@@ -1,0 +1,101 @@
+.create-or-alter function with (folder="cfeval", docstring="EvalResult with only the latest score per ask and backend (rescoring appends rows)")
+LatestResults() {
+    EvalResult
+    | summarize arg_max(ScoredUtc, *) by AskId, Backend
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Live view of asks as they stream in during a run (before scoring)")
+LiveAsks(lookback:timespan = 2h) {
+    EvalAsk
+    | where AskStartUtc > ago(lookback)
+    | project AskStartUtc, RunId, AskId, QuestionId, Attempt, Status, LatencyMs, WhyLatencyMs, ArtifactNames, PowerBiCited, AnswerPreview = substring(Answer, 0, 300)
+    | order by AskStartUtc desc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="One row per run and scoring backend: accuracy, routing, DAX and latency")
+RunSummary(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | summarize
+        Asks = count(),
+        Passed = countif(Verdict == "PASS"),
+        Failed = countif(Verdict == "FAIL"),
+        Inconclusive = countif(Verdict == "INCONCLUSIVE"),
+        ValueAccuracy = avgif(ValueScore, Verdict != "ERROR" and ValueScore in (0.0, 1.0)),
+        ArtifactAccuracy = avgif(ArtifactScore, Verdict != "ERROR" and ArtifactScore in (0.0, 1.0)),
+        ModelAccuracy = avgif(ModelScore, Verdict != "ERROR" and ModelScore in (0.0, 1.0)),
+        DecoyHits = sum(DecoyHit),
+        Errors = countif(Verdict == "ERROR"),
+        LatencyP50Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 50),
+        LatencyP95Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 95),
+        AvgDaxQueries = avg(DaxQueryCount),
+        AvgDaxMs = avg(DaxTotalMs),
+        FirstAsk = min(AskStartUtc),
+        LastAsk = max(AskStartUtc)
+        by RunId, Backend
+    | extend PassRate = round(todouble(Passed) / Asks, 4)
+    | join kind=leftouter (EvalRun | summarize arg_max(EndedUtc, RunName, EvalOption, Host, GoldenSetName, TestUser, FoundryReportUrl) by RunId) on RunId
+    | project-away RunId1
+    | order by FirstAsk desc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="A Copilot ask and the DAX Fabric IQ ran for it, in time order")
+AskTimeline(askId:string) {
+    let asks = EvalAsk | where AskId == askId;
+    let starts = asks | project AskId, RunId, EventTimeUtc = AskStartUtc, Kind = "ask.start", Model = "", DurationMs = LatencyMs, Detail = Question;
+    let ends = asks | project AskId, RunId, EventTimeUtc = AskEndUtc, Kind = "ask.end", Model = "", DurationMs = real(null), Detail = substring(Answer, 0, 1000);
+    let dax = FabricIqQuery | where AskId == askId | project AskId, RunId, EventTimeUtc = QueryTimeUtc, Kind = "dax", Model = ItemName, DurationMs, Detail = Dax;
+    union starts, ends, dax
+    | order by EventTimeUtc asc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Stability of each question across runs: pass rate, cited artifacts, queried models, value spread and latency")
+QuestionStability(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | summarize
+        Runs = dcount(RunId),
+        Asks = count(),
+        PassRate = round(avg(iff(Verdict == "PASS", 1.0, 0.0)), 4),
+        DistinctCitedSets = dcount(CitedArtifacts),
+        DistinctModelSets = dcount(QueriedModels),
+        ValueMin = min(ExtractedValue),
+        ValueMax = max(ExtractedValue),
+        LatencyP50Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 50),
+        LatencyP95Ms = percentile(iff(Verdict != "ERROR", LatencyMs, real(null)), 95)
+        by QuestionId, Question, Backend
+    | order by PassRate asc, QuestionId asc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Per-ask latency split: time in DAX versus the rest of the Copilot round trip (approximate when queries overlap)")
+LatencyBreakdown(runId:string) {
+    LatestResults()
+    | where RunId == runId
+    | extend NonDaxMs = max_of(LatencyMs - DaxTotalMs, 0.0)
+    | project AskId, QuestionId, Backend, LatencyMs, DaxTotalMs, NonDaxMs, DaxQueryCount, FirstDaxOffsetMs, WhyLatencyMs
+    | order by LatencyMs desc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Harness stage timings for a run: ask, follow-up, trace, scoring and publish")
+StageDurations(runId:string) {
+    EvalEvent
+    | where RunId == runId
+    | summarize Count = count(), TotalMs = sum(DurationMs), P50Ms = percentile(DurationMs, 50), P95Ms = percentile(DurationMs, 95), Failures = countif(Status != "ok") by Stage
+    | order by TotalMs desc
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Semantic models Fabric IQ queried, by expected model: shows routing at the engine level")
+RoutingMatrix(lookback:timespan = 30d) {
+    LatestResults()
+    | where AskStartUtc > ago(lookback)
+    | extend Queried = iff(isempty(QueriedModels), "(none observed)", QueriedModels)
+    | summarize Asks = count() by ExpectedModel, Queried, Backend
+    | order by ExpectedModel asc, Asks desc
+}

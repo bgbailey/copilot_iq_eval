@@ -1,15 +1,3 @@
-# Normalise line endings in the repository; check out with LF everywhere.
 * text=auto eol=lf
-
-# Binary assets
 *.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.ico binary
-*.pdf binary
-*.zip binary
-*.docx binary
-
-# The architecture SVG is a large exported drawing: don't show line diffs for it.
-*.svg -diff
+*.ipynb text eol=lf

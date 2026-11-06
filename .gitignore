@@ -1,66 +1,30 @@
-# ---------------------------------------------------------------------------
-# Never commit tenant data, secrets or token caches (CONTRIBUTING.md#security-and-data-rules)
-# ---------------------------------------------------------------------------
-config/settings.toml
+# Settings and secrets
 .env
 .env.*
 !.env.example
-# Per-persona MSAL token caches (PLAN §11)
 .cache/
-*.token
-*token_cache*
-msal_cache*
-*.pfx
-*.pem
-*.key
-*.cer
-*.crt
 
-# Run and spike outputs contain tenant identifiers; summarise findings in ADRs instead.
-out/
-spikes/out/
-# `evals deploy` output: workspace, lakehouse and item IDs of your tenant
+# Run output (keep the bundled sample data)
 runs/
-# `az bicep build` output
-infra/azure/main.json
-evals/generated/*
-!evals/generated/.gitkeep
+*.jsonl
 
-# ---------------------------------------------------------------------------
 # Python
-# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *.egg-info/
-.eggs/
 build/
 dist/
 .venv/
 venv/
-.python-env/
-pip-wheel-metadata/
-
-# Tooling caches and reports
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-.coverage
-.coverage.*
-coverage.xml
-htmlcov/
-junit*.xml
 .ipynb_checkpoints/
 
-# ---------------------------------------------------------------------------
-# Editors and operating systems
-# ---------------------------------------------------------------------------
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-.idea/
-*.swp
+# Node
+node_modules/
+app/standalone/dist/
+app/standalone/dist-smoke/
+
+# OS / editors
 .DS_Store
 Thumbs.db
-
-# Node (the Agent Evaluations CLI is installed globally on the runner, not here)
-node_modules/
+.vscode/
+.idea/

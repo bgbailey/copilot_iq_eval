@@ -1,21 +1,15 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
+# Security
 
-## Security
+Please don't report security problems in public issues.
 
-Microsoft takes the security of our software products and services seriously, which includes all source code repositories in our GitHub organizations.
+* Use GitHub's **private vulnerability reporting** (the repository's **Security** tab, **Report a vulnerability**).
+* Include what you found, how to reproduce it, and its impact. Don't include real tenant IDs, tokens, secrets or
+  customer data; use placeholders.
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+## Handling secrets in this project
 
-For security reporting information, locations, contact information, and policies, please review the latest guidance for Microsoft repositories at [https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
-
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
-
-## Project-specific guidance
-
-This harness signs in as test personas and reads tenant telemetry, so treat the following as security issues and report them through the channel above rather than as public issues:
-
-- A secret, token, token cache, certificate or connection string committed to this repository or written to a workflow log or build artifact.
-- A tenant identifier (tenant ID, domain, user principal name, workspace or item ID) committed to this repository.
-- A workflow change that would expose repository secrets to untrusted pull requests.
-
-The rules that prevent these are in [CONTRIBUTING.md](CONTRIBUTING.md#security-and-data-rules).
+* Settings live in `.env` (ignored by git) or Azure Key Vault. Never commit `.env`, token caches (`.cache/`) or run
+  folders (`runs/`) that may contain answers from your tenant.
+* The Copilot Chat API runs as a dedicated test user. Give that user only the access the golden set needs.
+* Run folders and the Eventhouse store Copilot's answers. Treat them with the same sensitivity as the data the
+  semantic models hold, and restrict access to the telemetry workspace and the scorecard app accordingly.

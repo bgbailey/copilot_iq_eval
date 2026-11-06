@@ -1,0 +1,30 @@
+{
+  "name": "cfeval-scorecard-preview",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Run the evaluation scorecard locally with the bundled sample data. No Fabric or sign-in needed.",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.1.0"
+  },
+  "overrides": {
+    "@types/estree": "1.0.8"
+  }
+}

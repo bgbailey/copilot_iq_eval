@@ -1,0 +1,644 @@
+{
+  "source": "eval_lakehouse",
+  "connector": "fabric-sqlanalytics",
+  "connectionString": "Data Source=<sql-analytics-endpoint>;Initial Catalog=eval_lakehouse",
+  "discoveredAt": "2026-11-04T00:00:00.000Z",
+  "schemas": [
+    {
+      "schemaName": "dbo",
+      "tables": [
+        {
+          "tableName": "EvalRun",
+          "columns": [
+            {
+              "columnName": "RunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "RunName",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "EvalOption",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Surface",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "StartedUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            },
+            {
+              "columnName": "EndedUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            },
+            {
+              "columnName": "Status",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Host",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "HarnessVersion",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "GoldenSetName",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "GoldenSetHash",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "QuestionCount",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "AskCount",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "Repeats",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "ExplainMode",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "TraceEnabled",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "TestUser",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "JudgeModel",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "FoundryEvalId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "FoundryRunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "FoundryReportUrl",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "PassRate",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ValueAccuracy",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ArtifactAccuracy",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ModelAccuracy",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "LatencyP50Ms",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "LatencyP95Ms",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "Notes",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            }
+          ]
+        },
+        {
+          "tableName": "EvalQuestion",
+          "columns": [
+            {
+              "columnName": "RunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "QuestionId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Question",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Category",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedArtifact",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ArtifactAliases",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedModel",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Decoys",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedValue",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "Unit",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "RelTol",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "AbsTol",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ExpectedAnswer",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ReferenceDax",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Criticality",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            }
+          ]
+        },
+        {
+          "tableName": "FabricIqQuery",
+          "columns": [
+            {
+              "columnName": "RunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "AskId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "QueryTimeUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            },
+            {
+              "columnName": "OffsetMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "WorkspaceId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ItemId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ItemName",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ApplicationName",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "OperationName",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "DurationMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "Dax",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "DaxChars",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "CorrelationId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            }
+          ]
+        },
+        {
+          "tableName": "EvalResult",
+          "columns": [
+            {
+              "columnName": "RunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "AskId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "QuestionId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Attempt",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "Question",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Category",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Criticality",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "TestUser",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "AskStartUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            },
+            {
+              "columnName": "Backend",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Verdict",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ValueScore",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ArtifactScore",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ModelScore",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "JudgeAnswerScore",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "WhyScore",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "DecoyHit",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "PowerBiCited",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "ExpectedArtifact",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "CitedArtifacts",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedModel",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "QueriedModels",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedValue",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ExtractedValue",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "ValueErrorPct",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "LatencyMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "WhyLatencyMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "DaxQueryCount",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "DaxTotalMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "DaxMaxMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "FirstDaxOffsetMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "TraceStatus",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "AnswerPreview",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "WhyPreview",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Reasons",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "JudgeNotes",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Error",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ScoredUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            }
+          ]
+        },
+        {
+          "tableName": "EvalEvent",
+          "columns": [
+            {
+              "columnName": "RunId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "AskId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "EventTimeUtc",
+              "isNullable": true,
+              "dataType": "datetime2",
+              "datePrecision": 6
+            },
+            {
+              "columnName": "Stage",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "DurationMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "Status",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Details",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
