@@ -6,6 +6,6 @@ PyYAML>=6.0
 msal>=1.28
 azure-kusto-data>=4.6
 azure-kusto-ingest>=4.6
-openai>=1.60,<3
+openai>=1.60,<4
 azure-identity>=1.19
 azure-ai-projects>=1.0.0b10,<3
