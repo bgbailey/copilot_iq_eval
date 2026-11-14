@@ -1,0 +1,227 @@
+version: 2
+name: Contoso Fabric IQ Smoke Suite
+description: Fast 8-question baseline smoke suite preserving original Q01-Q08 Contoso cases.
+defaults:
+  surface: copilot-chat
+  gates:
+  - value
+  - artifact
+  - model
+  rel_tol: 0.005
+questions:
+- id: Q01
+  question: What was gross revenue in FY2025 in the Sales Analytics report?
+  case_type: scalar
+  category: named-source
+  persona: sales-leader
+  intent:
+    measure: named_source_kpi_lookup
+  tags:
+  - revenue
+  - fy25
+  - named-source
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  expected: 12840000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in FY2025 was about $12.84M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - According to the Sales Analytics report, what was total gross revenue for FY2025?
+  - In Sales Analytics, how much gross revenue did Contoso record in fiscal year 2025?
+  notes: Source named in the prompt
+- id: Q02
+  question: What was gross revenue in FY2025?
+  case_type: scalar
+  category: routing
+  persona: executive
+  intent:
+    measure: unqualified_kpi_routing
+  tags:
+  - revenue
+  - fy25
+  - routing
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  - FY2025 revenue - DRAFT
+  expected: 12840000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in FY2025 was about $12.84M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - How much gross revenue did we generate in FY2025?
+  - Report Contoso total gross revenue for fiscal year 2025.
+  notes: 'Source not named: Copilot must route to the certified model'
+- id: Q03
+  question: What was net revenue in FY2025 after discounts and returns?
+  case_type: scalar
+  category: routing
+  persona: finance-analyst
+  intent:
+    measure: measure_disambiguation
+  tags:
+  - net-revenue
+  - fy25
+  - finance
+  expected_artifact: Finance
+  artifact_aliases: []
+  expected_model: Finance
+  decoys:
+  - Sales Sandbox
+  expected: 11950000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Net revenue in FY2025 was about $11.95M (Finance).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Net Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - After deducting discounts and product returns, what was FY2025 net revenue?
+  - What did net revenue come in at for FY2025 net of discounts and returns?
+  notes: 'Disambiguation: net revenue lives in Finance'
+- id: Q04
+  question: How many units did we sell in Q2 FY2025?
+  case_type: scalar
+  category: time-intelligence
+  persona: sales-leader
+  intent:
+    measure: quarterly_volume_lookup
+  tags:
+  - units
+  - q2-fy25
+  - time-intelligence
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  expected: 48210
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: 48,210 units were sold in Q2 FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Units], 'Date'[Fiscal Quarter] = "FY2025 Q2"))
+  criticality: standard
+  paraphrases:
+  - What was total unit volume sold during Q2 FY2025?
+  - Give me the count of units sold in the second fiscal quarter of FY2025.
+  notes: Fiscal quarter
+- id: Q05
+  question: What was the gross margin percentage in FY2025?
+  case_type: scalar
+  category: routing
+  persona: finance-analyst
+  intent:
+    measure: margin_ratio_lookup
+  tags:
+  - gross-margin
+  - fy25
+  - finance
+  expected_artifact: Finance
+  artifact_aliases: []
+  expected_model: Finance
+  decoys: []
+  expected: 41.6
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.1
+  expected_answer: Gross margin was 41.6% in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Margin %], 'Date'[Fiscal Year] = "FY2025") * 100)
+  criticality: standard
+  paraphrases:
+  - What gross margin percent did Contoso achieve in FY2025?
+  - Report FY2025 gross margin as a percentage.
+  notes: Percent in percentage points
+- id: Q06
+  question: How many Sev1 incidents did we have in FY2025?
+  case_type: scalar
+  category: routing
+  persona: ops-manager
+  intent:
+    measure: incident_count_lookup
+  tags:
+  - incidents
+  - sev1
+  - operations
+  expected_artifact: Service Operations
+  artifact_aliases: []
+  expected_model: Service Operations
+  decoys: []
+  expected: 312
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: There were 312 Sev1 incidents in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Sev1 Incidents], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  paraphrases:
+  - What was the total count of Severity 1 incidents in FY2025?
+  - How many Sev1 operational incidents were logged during FY2025?
+  notes: Third domain
+- id: Q07
+  question: What was the average time to resolve Sev1 incidents in FY2025 in hours?
+  case_type: scalar
+  category: routing
+  persona: ops-manager
+  intent:
+    measure: filtered_average_lookup
+  tags:
+  - mttr
+  - sev1
+  - operations
+  expected_artifact: Service Operations
+  artifact_aliases: []
+  expected_model: Service Operations
+  decoys: []
+  expected: 6.4
+  unit: number
+  rel_tol: 0.0
+  abs_tol: 0.05
+  expected_answer: Sev1 incidents took 6.4 hours on average to resolve in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([MTTR Hours], 'Date'[Fiscal Year] = "FY2025", 'Incident'[Severity]
+    = "Sev1"))
+  criticality: standard
+  paraphrases:
+  - What was mean time to resolution in hours for Sev1 incidents in FY2025?
+  - On average, how many hours did it take to resolve a Sev1 incident in FY2025?
+  notes: Average with a filter
+- id: Q08
+  question: What's our latest quarterly revenue number?
+  case_type: scalar
+  category: decoy
+  persona: executive
+  intent:
+    measure: recency_ambiguity_and_decoy_guard
+  tags:
+  - revenue
+  - recency
+  - decoy
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  - FY2025 revenue - DRAFT
+  expected: 3410000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in the latest complete quarter was about $3.41M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Quarter] = "FY2027 Q1"))
+  criticality: critical
+  paraphrases:
+  - What was revenue in our most recent completed quarter?
+  - Give me the latest completed fiscal quarter revenue figure.
+  notes: Recency wording invites the stale sandbox copy or a draft document

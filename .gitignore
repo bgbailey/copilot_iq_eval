@@ -4,14 +4,20 @@
 !.env.example
 .cache/
 
-# Run output (keep the bundled sample data)
+# Run output (keep the bundled sample data and test/calibration JSONL fixtures)
 runs/
 *.jsonl
+!tests/**/*.jsonl
+!data/**/*.jsonl
+!samples/**/*.jsonl
+!src/cfeval/resources/**/*.jsonl
 
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+.coverage
+coverage.xml
 build/
 dist/
 .venv/

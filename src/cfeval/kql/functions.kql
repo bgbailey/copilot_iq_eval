@@ -1,7 +1,25 @@
-.create-or-alter function with (folder="cfeval", docstring="EvalResult with only the latest score per ask and backend (rescoring appends rows)")
+.create-or-alter function with (folder="cfeval", docstring="EvalResult with only the latest score per ask and backend (rescoring appends rows; RowId deduplicates retries)")
 LatestResults() {
     EvalResult
-    | summarize arg_max(ScoredUtc, *) by AskId, Backend
+    | summarize arg_max(ScoredUtc, *) by RunId, AskId, Backend
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Deduplicated golden set snapshots per run")
+LatestQuestions() {
+    EvalQuestion
+    | extend _DedupKey = iff(isnotempty(RowId), RowId, strcat(RunId, "|", QuestionId))
+    | summarize take_any(*) by _DedupKey
+    | project-away _DedupKey
+}
+
+
+.create-or-alter function with (folder="cfeval", docstring="Deduplicated DAX queries from workspace monitoring")
+LatestQueries() {
+    FabricIqQuery
+    | extend _DedupKey = iff(isnotempty(RowId), RowId, hash_sha256(strcat(RunId, "|", AskId, "|", tostring(QueryTimeUtc), "|", ItemId, "|", tostring(DurationMs), "|", Dax)))
+    | summarize take_any(*) by _DedupKey
+    | project-away _DedupKey
 }
 
 
@@ -9,6 +27,8 @@ LatestResults() {
 LiveAsks(lookback:timespan = 2h) {
     EvalAsk
     | where AskStartUtc > ago(lookback)
+    | extend _DedupKey = iff(isnotempty(RowId), RowId, strcat(RunId, "|", AskId))
+    | summarize take_any(*) by _DedupKey
     | project AskStartUtc, RunId, AskId, QuestionId, Attempt, Status, LatencyMs, WhyLatencyMs, ArtifactNames, PowerBiCited, AnswerPreview = substring(Answer, 0, 300)
     | order by AskStartUtc desc
 }
@@ -44,10 +64,10 @@ RunSummary(lookback:timespan = 30d) {
 
 .create-or-alter function with (folder="cfeval", docstring="A Copilot ask and the DAX Fabric IQ ran for it, in time order")
 AskTimeline(askId:string) {
-    let asks = EvalAsk | where AskId == askId;
+    let asks = EvalAsk | where AskId == askId | extend _DedupKey = iff(isnotempty(RowId), RowId, strcat(RunId, "|", AskId)) | summarize take_any(*) by _DedupKey;
     let starts = asks | project AskId, RunId, EventTimeUtc = AskStartUtc, Kind = "ask.start", Model = "", DurationMs = LatencyMs, Detail = Question;
     let ends = asks | project AskId, RunId, EventTimeUtc = AskEndUtc, Kind = "ask.end", Model = "", DurationMs = real(null), Detail = substring(Answer, 0, 1000);
-    let dax = FabricIqQuery | where AskId == askId | project AskId, RunId, EventTimeUtc = QueryTimeUtc, Kind = "dax", Model = ItemName, DurationMs, Detail = Dax;
+    let dax = LatestQueries() | where AskId == askId | project AskId, RunId, EventTimeUtc = QueryTimeUtc, Kind = "dax", Model = ItemName, DurationMs, Detail = Dax;
     union starts, ends, dax
     | order by EventTimeUtc asc
 }
@@ -72,20 +92,21 @@ QuestionStability(lookback:timespan = 30d) {
 }
 
 
-.create-or-alter function with (folder="cfeval", docstring="Per-ask latency split: time in DAX versus the rest of the Copilot round trip (approximate when queries overlap)")
+.create-or-alter function with (folder="cfeval", docstring="Independent per-ask latency observations: answer, DAX, and follow-up timings are non-additive because DAX can span turns and overlap")
 LatencyBreakdown(runId:string) {
     LatestResults()
     | where RunId == runId
-    | extend NonDaxMs = max_of(LatencyMs - DaxTotalMs, 0.0)
-    | project AskId, QuestionId, Backend, LatencyMs, DaxTotalMs, NonDaxMs, DaxQueryCount, FirstDaxOffsetMs, WhyLatencyMs
+    | project AskId, QuestionId, Backend, LatencyMs, DaxTotalMs, DaxQueryCount, FirstDaxOffsetMs, WhyLatencyMs
     | order by LatencyMs desc
 }
 
 
-.create-or-alter function with (folder="cfeval", docstring="Harness stage timings for a run: ask, follow-up, trace, scoring and publish")
+.create-or-alter function with (folder="cfeval", docstring="Harness stage timings for a run: ask, follow-up, trace, scoring and publish (deduplicated by RowId)")
 StageDurations(runId:string) {
     EvalEvent
     | where RunId == runId
+    | extend _DedupKey = iff(isnotempty(RowId), RowId, hash_sha256(strcat(RunId, "|", AskId, "|", Stage, "|", tostring(EventTimeUtc), "|", tostring(DurationMs), "|", Status)))
+    | summarize take_any(*) by _DedupKey
     | summarize Count = count(), TotalMs = sum(DurationMs), P50Ms = percentile(DurationMs, 50), P95Ms = percentile(DurationMs, 95), Failures = countif(Status != "ok") by Stage
     | order by TotalMs desc
 }

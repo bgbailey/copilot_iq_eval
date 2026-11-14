@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bgbailey/copilot_iq_eval/schemas/golden.schema.json",
+  "title": "Copilot IQ Eval Golden Set Schema (v1 & v2)",
+  "description": "Schema for golden evaluation question suites supporting v1 flat questions and v2 structured cases, expectations, routing, personas, and paraphrases.",
+  "oneOf": [
+    { "$ref": "#/$defs/goldenDocument" },
+    {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/questionCase" }
+    }
+  ],
+  "$defs": {
+    "caseType": {
+      "type": "string",
+      "enum": [
+        "scalar",
+        "numeric",
+        "number",
+        "ranked_list",
+        "set",
+        "table",
+        "record",
+        "abstention",
+        "negative",
+        "refusal",
+        "clarification",
+        "direction",
+        "citation_only",
+        "categorical",
+        "text",
+        "facts"
+      ]
+    },
+    "unitType": {
+      "type": "string",
+      "enum": [
+        "",
+        "currency",
+        "percent",
+        "%",
+        "pp",
+        "percentage points",
+        "bps",
+        "basis points",
+        "count",
+        "number",
+        "units",
+        "orders",
+        "customers",
+        "days",
+        "hours",
+        "headcount",
+        "employees",
+        "items",
+        "ratio",
+        "x",
+        "usd",
+        "eur",
+        "gbp"
+      ]
+    },
+    "currencyType": {
+      "type": "string",
+      "enum": ["", "USD", "EUR", "GBP", "usd", "eur", "gbp", "$", "€", "£"]
+    },
+    "gateName": {
+      "type": "string",
+      "enum": ["value", "artifact", "model", "why", "judge_answer"]
+    },
+    "artifactRef": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": ["string", "null"] },
+            "id": { "type": ["string", "null"] },
+            "kind": { "type": ["string", "null"] },
+            "aliases": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "intentBlock": {
+      "type": "object",
+      "properties": {
+        "measure": { "type": "string" },
+        "grouping": { "type": "string" },
+        "date_context": { "type": "string" },
+        "as_of": { "type": "string" },
+        "filters": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        }
+      },
+      "additionalProperties": true
+    },
+    "expectationBlock": {
+      "type": "object",
+      "properties": {
+        "type": { "$ref": "#/$defs/caseType" },
+        "value": { "type": ["number", "string", "null"] },
+        "unit": { "$ref": "#/$defs/unitType" },
+        "currency": { "$ref": "#/$defs/currencyType" },
+        "rel_tol": { "type": "number", "minimum": 0 },
+        "abs_tol": { "type": ["number", "null"], "minimum": 0 },
+        "display_tol": { "type": "number", "minimum": 0 },
+        "reference_dax": { "type": "string" },
+        "reference_answer": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        },
+        "forbidden_items": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "forbidden": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "top_n": { "type": "integer", "minimum": 1 },
+        "ordered": { "type": "boolean" },
+        "min_overlap": { "type": "number", "minimum": 0 },
+        "rows": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "key": { "type": "string" },
+        "fields": { "type": "object" },
+        "direction": {
+          "type": "string",
+          "enum": ["up", "down", "flat"]
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "facts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "allow_numbers": { "type": "boolean" },
+        "allowed_numbers": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "routingBlock": {
+      "type": "object",
+      "properties": {
+        "expected_model": { "$ref": "#/$defs/artifactRef" },
+        "expected_artifact": { "$ref": "#/$defs/artifactRef" },
+        "expected_artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactRef" }
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "decoys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactRef" }
+        },
+        "expected_kind": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "questionCase": {
+      "type": "object",
+      "required": ["id", "question"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "paraphrases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "category": { "type": "string" },
+        "criticality": {
+          "type": "string",
+          "enum": ["standard", "critical", "advisory"]
+        },
+        "persona": { "type": "string" },
+        "tags": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "gates": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "$ref": "#/$defs/gateName" } }
+          ]
+        },
+        "repeats": { "type": "integer", "minimum": 1 },
+        "intent": { "$ref": "#/$defs/intentBlock" },
+        "case_type": { "$ref": "#/$defs/caseType" },
+        "expected_value": { "type": ["number", "null"] },
+        "expected": { "type": ["number", "string", "null"] },
+        "unit": { "$ref": "#/$defs/unitType" },
+        "currency": { "$ref": "#/$defs/currencyType" },
+        "rel_tol": { "type": "number", "minimum": 0 },
+        "abs_tol": { "type": ["number", "null"], "minimum": 0 },
+        "display_tol": { "type": "number", "minimum": 0 },
+        "expect": { "$ref": "#/$defs/expectationBlock" },
+        "expectation": { "$ref": "#/$defs/expectationBlock" },
+        "routing": { "$ref": "#/$defs/routingBlock" },
+        "expected_artifact": { "type": "string" },
+        "expected_artifact_id": { "type": "string" },
+        "artifact_aliases": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "expected_model": { "type": "string" },
+        "decoys": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "expected_answer": { "type": "string" },
+        "reference_dax": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "defaultsBlock": {
+      "type": "object",
+      "properties": {
+        "repeats": { "type": "integer", "minimum": 1 },
+        "rel_tol": { "type": "number", "minimum": 0 },
+        "abs_tol": { "type": "number", "minimum": 0 },
+        "display_tol": { "type": "number", "minimum": 0 },
+        "unit": { "$ref": "#/$defs/unitType" },
+        "currency": { "$ref": "#/$defs/currencyType" },
+        "criticality": {
+          "type": "string",
+          "enum": ["standard", "critical", "advisory"]
+        },
+        "persona": { "type": "string" },
+        "gates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gateName" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "goldenDocument": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": ["cfeval.golden/v1", "cfeval.golden/v2"]
+        },
+        "version": {
+          "type": ["integer", "string"],
+          "enum": [1, 2, "1", "2", "v1", "v2"]
+        },
+        "schema_version": {
+          "type": "integer",
+          "enum": [1, 2]
+        },
+        "name": { "type": "string" },
+        "dataset": { "type": "string" },
+        "suite": { "type": "string" },
+        "description": { "type": "string" },
+        "surface": { "type": "string" },
+        "as_of": { "type": "string" },
+        "defaults": { "$ref": "#/$defs/defaultsBlock" },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/questionCase" }
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/questionCase" }
+        }
+      },
+      "anyOf": [
+        { "required": ["cases"] },
+        { "required": ["questions"] }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

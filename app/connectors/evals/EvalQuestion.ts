@@ -21,4 +21,12 @@ export class EvalQuestion extends Source({ schema: 'dbo', table: 'EvalQuestion',
   @text({ optional: true, column: 'ExpectedAnswer', max: 8000 }) expectedAnswer?: string;
   @text({ optional: true, column: 'ReferenceDax', max: 8000 }) referenceDax?: string;
   @text({ optional: true, column: 'Criticality', max: 8000 }) criticality?: string;
+  @text({ optional: true, column: 'RowId', max: 8000 }) rowId?: string;
+  @text({ optional: true, column: 'ExpectedArtifactId', max: 8000 }) expectedArtifactId?: string;
+  @text({ optional: true, column: 'CaseType', max: 8000 }) caseType?: string;
+  @text({ optional: true, column: 'Persona', max: 8000 }) persona?: string;
+  @text({ optional: true, column: 'Tags', max: 8000 }) tags?: string;
+  @text({ optional: true, column: 'Intent', max: 8000 }) intent?: string;
+  @text({ optional: true, column: 'Gates', max: 8000 }) gates?: string;
+  @text({ optional: true, column: 'Paraphrase', max: 8000 }) paraphrase?: string;
 }

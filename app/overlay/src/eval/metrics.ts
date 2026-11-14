@@ -1,10 +1,12 @@
 // Scorecard metrics over normalized telemetry rows. Pure: no runtime imports, unit-tested with
-// node --test. Definitions match the Python harness (pipeline.run_metrics) and the KQL functions.
+// node --test. Definitions match the Python harness (pipeline.run_metrics and cfeval.stats) and KQL.
 import type { EvalEventRow, EvalQuestionRow, EvalResultRow, EvalRunRow, FabricIqQueryRow } from './generated/contract';
 
 export type Verdict = 'PASS' | 'FAIL' | 'INCONCLUSIVE' | 'ERROR';
 export const VERDICTS: readonly Verdict[] = ['PASS', 'FAIL', 'INCONCLUSIVE', 'ERROR'];
 export const BACKENDS = ['fabric-native', 'foundry'] as const;
+
+const DEFAULT_WILSON_Z = 1.959963984540054;
 
 export interface EvalData {
   runs: EvalRunRow[];
@@ -15,6 +17,68 @@ export interface EvalData {
   source: 'sample' | 'live';
   loadedAt: Date;
   truncated: boolean;
+}
+
+/** Wilson score confidence interval [low, high] matching Python cfeval.stats. */
+export function wilsonInterval(successes: number, total: number, z = DEFAULT_WILSON_Z): [number, number] {
+  if (!Number.isFinite(total) || !Number.isFinite(successes) || total <= 0) return [0, 0];
+  const clamped = Math.max(0, Math.min(successes, total));
+  const p = clamped / total;
+  const z2 = z * z;
+  const denom = 1 + z2 / total;
+  const center = (p + z2 / (2 * total)) / denom;
+  const half = (z * Math.sqrt((p * (1 - p)) / total + z2 / (4 * total * total))) / denom;
+  return [Math.max(0, center - half), Math.min(1, center + half)];
+}
+
+/** Unbiased pass@k estimator: 1 - comb(n - c, k_eff) / comb(n, k_eff). */
+export function passAtK(n: number, c: number, k: number): number {
+  if (!Number.isFinite(n) || !Number.isFinite(c) || !Number.isFinite(k) || n <= 0 || k <= 0 || c <= 0) return 0;
+  const nInt = Math.floor(n);
+  const cInt = Math.min(Math.floor(c), nInt);
+  const kEff = Math.min(Math.floor(k), nInt);
+  if (nInt <= 0 || kEff <= 0 || cInt <= 0) return 0;
+  if (nInt - cInt < kEff) return 1;
+  let ratio = 1;
+  for (let i = 0; i < kEff; i += 1) {
+    ratio *= (nInt - cInt - i) / (nInt - i);
+  }
+  return 1 - ratio;
+}
+
+/** Strict reliability metric pass^k: (c / n)^k. */
+export function passPowK(n: number, c: number, k: number): number {
+  if (!Number.isFinite(n) || !Number.isFinite(c) || !Number.isFinite(k) || n <= 0 || k <= 0 || c <= 0) return 0;
+  if (c >= n) return 1;
+  return Math.pow(c / n, k);
+}
+
+/** Two-sided exact McNemar binomial test p-value on discordant counts (b, c). */
+export function mcnemarExactP(b: number, c: number): number {
+  if (!Number.isFinite(b) || !Number.isFinite(c) || b < 0 || c < 0) {
+    throw new RangeError('Discordant counts b and c must be non-negative finite numbers.');
+  }
+  const bInt = Math.floor(b);
+  const cInt = Math.floor(c);
+  const n = bInt + cInt;
+  if (n === 0 || bInt === cInt) return 1;
+  const m = Math.min(bInt, cInt);
+  if (n <= 1000) {
+    let term = Math.pow(0.5, n);
+    let tail = term;
+    for (let i = 1; i <= m; i += 1) {
+      term *= (n - i + 1) / i;
+      tail += term;
+    }
+    return Math.min(1, 2 * tail);
+  }
+  let log2Term = -n;
+  let tail = Math.pow(2, log2Term);
+  for (let i = 1; i <= m; i += 1) {
+    log2Term += Math.log2((n - i + 1) / i);
+    tail += Math.pow(2, log2Term);
+  }
+  return Math.min(1, 2 * tail);
 }
 
 /** Linear interpolation between closest ranks (numpy default; same as the harness). */
@@ -31,6 +95,19 @@ function time(d: Date | null | undefined): number {
   return d ? d.getTime() : 0;
 }
 
+function nonEmptyId(id: string | null | undefined): string | null {
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(',')}}`;
+}
+
 export function askKey(row: { runId: string | null; askId: string | null }): string {
   return JSON.stringify([row.runId, row.askId]);
 }
@@ -39,15 +116,62 @@ export function resultKey(row: EvalResultRow): string {
   return JSON.stringify([row.runId, row.askId, row.backend]);
 }
 
-/** Only remove identical records; never merge conflicting live observations. */
+/** Only remove identical records (or matching rowId); never merge conflicting live observations. */
 export function distinctRows<T extends object>(rows: readonly T[]): T[] {
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
   return rows.filter((row) => {
-    const key = JSON.stringify(Object.entries(row).sort(([a], [b]) => a.localeCompare(b)));
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const rowId = nonEmptyId((row as { rowId?: string | null }).rowId);
+    if (rowId !== null) {
+      if (seenIds.has(rowId)) return false;
+      seenIds.add(rowId);
+    }
+    const key = stableJson(row);
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
     return true;
   });
+}
+
+function dedupeQuestions(rows: readonly EvalQuestionRow[]): EvalQuestionRow[] {
+  const seenIds = new Set<string>();
+  const byKey = new Map<string, EvalQuestionRow>();
+  for (const q of rows) {
+    const rowId = nonEmptyId(q.rowId);
+    if (rowId !== null) {
+      if (seenIds.has(rowId)) continue;
+      seenIds.add(rowId);
+    }
+    const key = `${q.runId ?? ''}|${q.questionId ?? ''}`;
+    if (!byKey.has(key)) byKey.set(key, q);
+  }
+  return [...byKey.values()];
+}
+
+function dedupeQueries(rows: readonly FabricIqQueryRow[]): FabricIqQueryRow[] {
+  const seen = new Set<string>();
+  const out: FabricIqQueryRow[] = [];
+  for (const q of rows) {
+    const key = nonEmptyId(q.rowId)
+      ?? `${q.runId ?? ''}|${q.askId ?? ''}|${time(q.queryTimeUtc)}|${q.offsetMs ?? ''}|${q.dax ?? ''}|${q.correlationId ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(q);
+  }
+  return out;
+}
+
+function dedupeEvents(rows: readonly EvalEventRow[]): EvalEventRow[] {
+  const seen = new Set<string>();
+  const out: EvalEventRow[] = [];
+  for (const e of rows) {
+    const key = nonEmptyId(e.rowId)
+      ?? `${e.runId ?? ''}|${time(e.eventTimeUtc)}|${e.stage ?? ''}|${e.askId ?? ''}|${stableJson(e.details)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  return out;
 }
 
 /** observed is usable, settled time-window evidence, NOT proof of exhaustive query capture. */
@@ -63,16 +187,26 @@ export function modelScore(row: EvalResultRow): number | null {
 export function resultVerdict(row: EvalResultRow): Verdict {
   const verdict = row.verdict as Verdict;
   if (!VERDICTS.includes(verdict)) return 'INCONCLUSIVE';
-  if (verdict === 'PASS' && (modelScore(row) === 0.5 || ['pending', 'missing', 'incomplete', 'error'].includes(row.traceStatus ?? ''))) {
+  const citationsOnly = row.traceStatus === 'disabled' || row.routingEvidence === 'citations-only' || row.routingEvidence === 'tool_call';
+  if (
+    verdict === 'PASS'
+    && ((!citationsOnly && modelScore(row) === 0.5) || ['pending', 'missing', 'incomplete', 'error'].includes(row.traceStatus ?? ''))
+  ) {
     return 'INCONCLUSIVE';
   }
   return verdict;
 }
 
-/** Rescoring appends rows: keep the latest score per ask and backend. */
+/** Rescoring appends rows: deduplicate by rowId first, then keep latest score per ask and backend. */
 export function latestResults(rows: readonly EvalResultRow[]): EvalResultRow[] {
+  const seenIds = new Set<string>();
   const best = new Map<string, EvalResultRow>();
   for (const r of rows) {
+    const rowId = nonEmptyId(r.rowId);
+    if (rowId !== null) {
+      if (seenIds.has(rowId)) continue;
+      seenIds.add(rowId);
+    }
     const key = resultKey(r);
     const cur = best.get(key);
     if (!cur || time(r.scoredUtc) >= time(cur.scoredUtc)) best.set(key, r);
@@ -92,12 +226,19 @@ export function answerObservations(rows: readonly EvalResultRow[]): EvalResultRo
   return [...best.values()];
 }
 
-/** Keep the latest row per run (a rescore writes another EvalRun row). */
+/** Keep the latest row per run (deduplicating by rowId and collapsing rescore appends by runId). */
 export function latestRuns(rows: readonly EvalRunRow[]): EvalRunRow[] {
+  const seenIds = new Set<string>();
   const best = new Map<string, EvalRunRow>();
   for (const r of rows) {
-    const cur = best.get(r.runId ?? '');
-    if (!cur || time(r.endedUtc) >= time(cur.endedUtc)) best.set(r.runId ?? '', r);
+    const rowId = nonEmptyId(r.rowId);
+    if (rowId !== null) {
+      if (seenIds.has(rowId)) continue;
+      seenIds.add(rowId);
+    }
+    const key = r.runId ?? '';
+    const cur = best.get(key);
+    if (!cur || time(r.endedUtc ?? r.startedUtc) >= time(cur.endedUtc ?? cur.startedUtc)) best.set(key, r);
   }
   return [...best.values()].sort((a, b) => time(b.startedUtc) - time(a.startedUtc));
 }
@@ -107,8 +248,18 @@ export interface ResultFilter {
   sinceDays?: number;
   now?: Date;
   runId?: string;
-  surface?: string; // 'all' | 'simulated' | 'copilot-chat-api'
+  surface?: string; // 'all' | 'live' | 'simulated' | specific surface name
   runSurfaces?: Map<string, string>;
+}
+
+export function isLiveSurface(surface: string | null | undefined): boolean {
+  return Boolean(surface && surface !== 'simulated');
+}
+
+function matchesSurfaceFilter(actualSurface: string | null | undefined, filterSurface: string | undefined): boolean {
+  if (!filterSurface || filterSurface === 'all') return true;
+  if (filterSurface === 'live') return isLiveSurface(actualSurface);
+  return (actualSurface ?? '') === filterSurface;
 }
 
 export function filterResults(rows: readonly EvalResultRow[], f: ResultFilter): EvalResultRow[] {
@@ -117,7 +268,7 @@ export function filterResults(rows: readonly EvalResultRow[], f: ResultFilter): 
     if (f.backend && f.backend !== 'all' && r.backend !== f.backend) return false;
     if (f.runId && r.runId !== f.runId) return false;
     if (since !== null && time(r.askStartUtc) < since) return false;
-    if (f.surface && f.surface !== 'all' && f.runSurfaces && f.runSurfaces.get(r.runId ?? '') !== f.surface) {
+    if (f.surface && f.surface !== 'all' && f.runSurfaces && !matchesSurfaceFilter(f.runSurfaces.get(r.runId ?? ''), f.surface)) {
       return false;
     }
     return true;
@@ -186,8 +337,46 @@ export function kpis(rows: readonly EvalResultRow[], complete = true): Kpis {
 }
 
 export function runBackends(run: EvalRunRow, backend = 'all'): string[] {
-  const declared = BACKENDS.filter((b) => run.evalOption?.includes(b));
+  const opt = run.evalOption ?? '';
+  const declared = opt === 'both' ? [...BACKENDS] : BACKENDS.filter((b) => opt.includes(b));
   return backend === 'all' ? declared : declared.filter((b) => b === backend);
+}
+
+function inferRunPassPowK(rows: readonly EvalResultRow[], k: number): number | null {
+  if (!rows.length || k <= 0) return null;
+  const byCase = new Map<string, EvalResultRow[]>();
+  for (const r of rows) {
+    const key = r.questionId ?? r.askId ?? '';
+    const list = byCase.get(key) ?? [];
+    list.push(r);
+    byCase.set(key, list);
+  }
+  if (!byCase.size) return null;
+  let sum = 0;
+  for (const caseRows of byCase.values()) {
+    const passed = caseRows.filter((r) => resultVerdict(r) === 'PASS').length;
+    sum += passPowK(caseRows.length, passed, k);
+  }
+  return sum / byCase.size;
+}
+
+function inferRoutingEvidence(rows: readonly EvalResultRow[], run?: EvalRunRow): string | null {
+  const ok = rows.filter((r) => resultVerdict(r) !== 'ERROR');
+  const pool = ok.length ? ok : rows;
+  const explicit = pool.map((r) => nonEmptyId(r.routingEvidence)).filter((v): v is string => v !== null);
+  if (explicit.length > 0) {
+    const counts = new Map<string, number>();
+    for (const tier of explicit) counts.set(tier, (counts.get(tier) ?? 0) + 1);
+    const rank: Record<string, number> = { unverified: 0, 'citations-only': 1, 'engine+citations': 2, tool_call: 3 };
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || (rank[a[0]] ?? 99) - (rank[b[0]] ?? 99))[0][0];
+  }
+  if (pool.some(traceObserved)) return 'engine+citations';
+  if (run?.traceEnabled === 0 || (pool.length > 0 && pool.every((r) => r.traceStatus === 'disabled'))) {
+    return 'citations-only';
+  }
+  if (pool.some((r) => (r.powerBiCited ?? 0) > 0 || Boolean(r.citedArtifacts))) return 'citations-only';
+  if (pool.length > 0) return 'unverified';
+  return null;
 }
 
 export interface RunCoverage {
@@ -203,7 +392,8 @@ export function runCoverage(run: EvalRunRow, results: readonly EvalResultRow[], 
   const backends = runBackends(run, backend);
   const expectedAsks = run.askCount;
   const own = latestResults(results).filter((r) => r.runId === run.runId && backends.includes(r.backend ?? ''));
-  const questionIds = new Set(questions.filter((q) => q.runId === run.runId && q.questionId).map((q) => q.questionId));
+  const cleanQuestions = dedupeQuestions(questions);
+  const questionIds = new Set(cleanQuestions.filter((q) => q.runId === run.runId && q.questionId).map((q) => q.questionId));
   const questionCount = questionIds.size;
   const expectedScores = expectedAsks === null ? null : expectedAsks * backends.length;
   const complete = expectedAsks !== null && expectedAsks > 0 && backends.length > 0
@@ -222,8 +412,13 @@ export interface RunPoint {
   backend: string;
   startedUtc: Date | null;
   surface: string;
+  target: string | null;
+  routingEvidence: string | null;
   asks: number;
   passRate: number | null;
+  passPowK: number | null;
+  wilsonLow: number | null;
+  wilsonHigh: number | null;
   valueAccuracy: number | null;
   artifactAccuracy: number | null;
   modelAccuracy: number | null;
@@ -237,15 +432,18 @@ export interface RunPoint {
 
 /** One point per run and backend, oldest first. */
 export function runSeries(results: readonly EvalResultRow[], runs: readonly EvalRunRow[], questions: readonly EvalQuestionRow[], backend = 'all', truncated = false): RunPoint[] {
-  const runById = new Map(runs.map((r) => [r.runId ?? '', r]));
+  const cleanRuns = latestRuns(runs);
+  const cleanQuestions = dedupeQuestions(questions);
+  const dedupedResults = latestResults(results);
+  const runById = new Map(cleanRuns.map((r) => [r.runId ?? '', r]));
   const groups = new Map<string, EvalResultRow[]>();
-  for (const r of latestResults(results)) {
+  for (const r of dedupedResults) {
     const key = `${r.runId}|${r.backend}`;
     const list = groups.get(key) ?? [];
     list.push(r);
     groups.set(key, list);
   }
-  for (const run of runs) {
+  for (const run of cleanRuns) {
     for (const b of runBackends(run, backend)) {
       const key = `${run.runId}|${b}`;
       if (!groups.has(key)) groups.set(key, []);
@@ -253,22 +451,130 @@ export function runSeries(results: readonly EvalResultRow[], runs: readonly Eval
   }
   const points: RunPoint[] = [];
   for (const [key, rows] of groups) {
-    const [runId, backend] = key.split('|');
+    const [runId, rowBackend] = key.split('|');
     const run = runById.get(runId);
-    const coverage = run ? runCoverage(run, results, questions, backend) : null;
+    const coverage = run ? runCoverage(run, dedupedResults, cleanQuestions, rowBackend) : null;
     const complete = !truncated && Boolean(coverage?.complete);
     const k = kpis(rows, complete);
+    const kAttempts = Math.max(1, run?.k ?? run?.repeats ?? 1);
+    const [wLow, wHigh] = complete && k.scores > 0
+      ? wilsonInterval(k.pass, k.scores)
+      : [run?.wilsonLow ?? null, run?.wilsonHigh ?? null];
+    const computedPassPowK = complete && rows.length > 0
+      ? inferRunPassPowK(rows, kAttempts)
+      : (run?.passPowK ?? null);
     const verdicts = { PASS: k.pass, FAIL: k.fail, INCONCLUSIVE: k.inconclusive, ERROR: k.error };
     const firstAsk = rows.reduce<Date | null>((m, r) => (r.askStartUtc && (!m || r.askStartUtc < m) ? r.askStartUtc : m), null);
     points.push({
-      runId, backend, verdicts, asks: k.asks, complete, expectedAsks: coverage?.expectedAsks ?? null,
-      passRate: k.passRate, valueAccuracy: k.valueAccuracy,
-      artifactAccuracy: k.artifactAccuracy, modelAccuracy: k.modelAccuracy, latencyP50: k.latencyP50,
-      latencyP95: k.latencyP95, runName: run?.runName ?? runId, startedUtc: run?.startedUtc ?? firstAsk,
-      surface: run?.surface ?? '', foundryReportUrl: run?.foundryReportUrl ?? '',
+      runId, backend: rowBackend, verdicts, asks: k.asks, complete, expectedAsks: coverage?.expectedAsks ?? null,
+      passRate: k.passRate, passPowK: computedPassPowK, wilsonLow: wLow, wilsonHigh: wHigh,
+      valueAccuracy: k.valueAccuracy, artifactAccuracy: k.artifactAccuracy, modelAccuracy: k.modelAccuracy,
+      latencyP50: k.latencyP50, latencyP95: k.latencyP95, runName: run?.runName ?? runId,
+      startedUtc: run?.startedUtc ?? firstAsk, surface: run?.surface ?? '',
+      target: nonEmptyId(run?.target) ?? nonEmptyId(run?.surface) ?? null,
+      routingEvidence: inferRoutingEvidence(rows, run),
+      foundryReportUrl: run?.foundryReportUrl ?? '',
     });
   }
   return points.sort((a, b) => time(a.startedUtc) - time(b.startedUtc) || a.backend.localeCompare(b.backend));
+}
+
+export interface RunSummary {
+  runId: string;
+  runName: string;
+  backend: string;
+  surface: string;
+  target: string | null;
+  routingEvidence: string | null;
+  startedUtc: Date | null;
+  endedUtc: Date | null;
+  asks: number;
+  scores: number;
+  k: number;
+  passRate: number | null;
+  passPowK: number | null;
+  wilsonLow: number | null;
+  wilsonHigh: number | null;
+  valueAccuracy: number | null;
+  artifactAccuracy: number | null;
+  modelAccuracy: number | null;
+  latencyP50: number | null;
+  latencyP95: number | null;
+  verdicts: Record<Verdict, number>;
+}
+
+/** Collapse paired multi-backend rows (e.g. fabric-native + foundry) to one primary trial per ask. */
+function primaryTrialRows(rows: readonly EvalResultRow[], backend: string): EvalResultRow[] {
+  if (backend !== 'all' || rows.length <= 1) return [...rows];
+  const byAsk = new Map<string, EvalResultRow>();
+  for (const r of rows) {
+    const key = askKey(r);
+    const cur = byAsk.get(key);
+    if (!cur || (cur.backend !== 'fabric-native' && r.backend === 'fabric-native')) {
+      byAsk.set(key, r);
+    }
+  }
+  return [...byAsk.values()];
+}
+
+/** Defensive per-run summary preferring computed metrics over stored EvalRun columns. */
+export function runSummaries(
+  runs: readonly EvalRunRow[],
+  results: readonly EvalResultRow[] = [],
+  backend = 'all',
+): RunSummary[] {
+  const cleanRuns = latestRuns(runs);
+  const dedupedResults = latestResults(results).filter((r) => backend === 'all' || r.backend === backend);
+  const runById = new Map(cleanRuns.map((r) => [r.runId ?? '', r]));
+  const byRun = new Map<string, EvalResultRow[]>();
+  for (const r of dedupedResults) {
+    const id = r.runId ?? '';
+    const list = byRun.get(id) ?? [];
+    list.push(r);
+    byRun.set(id, list);
+  }
+  for (const r of cleanRuns) {
+    if (backend !== 'all' && runBackends(r, backend).length === 0) continue;
+    const id = r.runId ?? '';
+    if (!byRun.has(id)) byRun.set(id, []);
+  }
+  const out: RunSummary[] = [];
+  for (const [runId, rows] of byRun) {
+    const run = runById.get(runId);
+    const trialRows = primaryTrialRows(rows, backend);
+    const maxAttempt = trialRows.reduce((m, r) => Math.max(m, r.attempt ?? 1), 1);
+    const kAttempts = Math.max(1, run?.k ?? run?.repeats ?? maxAttempt);
+    const k = kpis(trialRows, trialRows.length > 0);
+    const hasRows = k.scores > 0;
+    const [wLow, wHigh] = hasRows
+      ? wilsonInterval(k.pass, k.scores)
+      : [run?.wilsonLow ?? null, run?.wilsonHigh ?? null];
+    const computedPassPowK = hasRows ? inferRunPassPowK(trialRows, kAttempts) : (run?.passPowK ?? null);
+    out.push({
+      runId,
+      runName: run?.runName ?? runId,
+      backend: backend === 'all' ? (run?.evalOption ?? (rows[0]?.backend ?? 'all')) : backend,
+      surface: run?.surface ?? '',
+      target: nonEmptyId(run?.target) ?? nonEmptyId(run?.surface) ?? null,
+      routingEvidence: inferRoutingEvidence(rows, run),
+      startedUtc: run?.startedUtc ?? null,
+      endedUtc: run?.endedUtc ?? null,
+      asks: hasRows ? k.asks : (run?.askCount ?? 0),
+      scores: k.scores,
+      k: kAttempts,
+      passRate: hasRows ? k.passRate : (run?.passRate ?? null),
+      passPowK: computedPassPowK,
+      wilsonLow: wLow,
+      wilsonHigh: wHigh,
+      valueAccuracy: hasRows ? k.valueAccuracy : (run?.valueAccuracy ?? null),
+      artifactAccuracy: hasRows ? k.artifactAccuracy : (run?.artifactAccuracy ?? null),
+      modelAccuracy: hasRows ? k.modelAccuracy : (run?.modelAccuracy ?? null),
+      latencyP50: hasRows ? k.latencyP50 : (run?.latencyP50Ms ?? null),
+      latencyP95: hasRows ? k.latencyP95 : (run?.latencyP95Ms ?? null),
+      verdicts: { PASS: k.pass, FAIL: k.fail, INCONCLUSIVE: k.inconclusive, ERROR: k.error },
+    });
+  }
+  return out.sort((a, b) => time(b.startedUtc) - time(a.startedUtc) || a.runId.localeCompare(b.runId));
 }
 
 export interface QuestionStat {
@@ -345,10 +651,10 @@ export function selectView(data: EvalData, filters: ResultFilter) {
   const since = filters.sinceDays ? now.getTime() - filters.sinceDays * 86400000 : 0;
   const runs = allRuns.filter((r) =>
     (time(r.startedUtc) >= since || resultRunIds.has(r.runId))
-    && (!filters.surface || filters.surface === 'all' || r.surface === filters.surface)
+    && matchesSurfaceFilter(r.surface, filters.surface)
     && (!filters.backend || filters.backend === 'all' || runBackends(r, filters.backend).length > 0));
   const runIds = new Set([...runs.map((r) => r.runId), ...resultRunIds]);
-  const questions = data.questions.filter((q) => runIds.has(q.runId));
+  const questions = dedupeQuestions(data.questions.filter((q) => runIds.has(q.runId)));
   const coverage = runs.map((r) => runCoverage(r, results, questions, filters.backend));
   const knownRuns = new Set(runs.map((r) => r.runId));
   const incomplete = data.truncated || coverage.some((r) => !r.complete) || results.some((r) => !knownRuns.has(r.runId));
@@ -356,8 +662,9 @@ export function selectView(data: EvalData, filters: ResultFilter) {
   return {
     results, runs, questions, coverage, incomplete,
     points: runSeries(results, runs, questions, filters.backend, data.truncated),
-    queries: distinctRows(data.queries.filter((q) => asks.has(askKey(q)))),
-    events: distinctRows(data.events.filter((e) => runIds.has(e.runId))),
+    summaries: runSummaries(runs, results, filters.backend),
+    queries: dedupeQueries(data.queries.filter((q) => asks.has(askKey(q)))),
+    events: dedupeEvents(data.events.filter((e) => runIds.has(e.runId))),
   };
 }
 
@@ -446,9 +753,10 @@ export function latencyBreakdown(rows: readonly EvalResultRow[]): { questionId: 
   }).sort((a, b) => a.questionId.localeCompare(b.questionId));
 }
 
+/** Independent measured stage durations only; never computes additive residuals across overlapping stages. */
 export function stageDurations(events: readonly EvalEventRow[]): { stage: string; count: number; p50: number | null; p95: number | null; totalMs: number; failures: number }[] {
   const groups = new Map<string, EvalEventRow[]>();
-  for (const e of distinctRows(events)) {
+  for (const e of dedupeEvents(events)) {
     const list = groups.get(e.stage ?? '') ?? [];
     list.push(e);
     groups.set(e.stage ?? '', list);
@@ -461,7 +769,7 @@ export function stageDurations(events: readonly EvalEventRow[]): { stage: string
 }
 
 export function slowestQueries(queries: readonly FabricIqQueryRow[], n = 10): FabricIqQueryRow[] {
-  return distinctRows(queries).sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0)).slice(0, n);
+  return dedupeQueries(queries).sort((a, b) => (b.durationMs ?? 0) - (a.durationMs ?? 0)).slice(0, n);
 }
 
 /** For asks scored by both options: how often the verdicts agree. */
@@ -503,7 +811,7 @@ export function askTimeline(result: EvalResultRow, queries: readonly FabricIqQue
   if (result.whyLatencyMs) {
     bars.push({ label: "Follow-up 'why'", kind: 'why', startMs: answer, endMs: answer + result.whyLatencyMs, detail: '' });
   }
-  const own = distinctRows(queries.filter((q) => askKey(q) === askKey(result))).sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0));
+  const own = dedupeQueries(queries.filter((q) => askKey(q) === askKey(result))).sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0));
   for (const q of own) {
     const end = q.offsetMs ?? 0;
     bars.push({ label: q.itemName ?? 'DAX', kind: 'dax', startMs: Math.max(end - (q.durationMs ?? 0), 0), endMs: end, detail: q.dax ?? '' });

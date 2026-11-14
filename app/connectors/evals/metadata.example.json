@@ -177,6 +177,66 @@
               "isNullable": true,
               "dataType": "varchar",
               "maxLength": 8000
+            },
+            {
+              "columnName": "RowId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Target",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "K",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
+            },
+            {
+              "columnName": "PassPowK",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "WilsonLow",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "WilsonHigh",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
+            },
+            {
+              "columnName": "JudgePromptHash",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "JudgeCalibrationId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "GatePolicyHash",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "SchemaVersion",
+              "isNullable": true,
+              "dataType": "int",
+              "precision": 10
             }
           ]
         },
@@ -272,6 +332,54 @@
               "isNullable": true,
               "dataType": "varchar",
               "maxLength": 8000
+            },
+            {
+              "columnName": "RowId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExpectedArtifactId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "CaseType",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Persona",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Tags",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Intent",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Gates",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Paraphrase",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
             }
           ]
         },
@@ -355,6 +463,30 @@
               "isNullable": true,
               "dataType": "varchar",
               "maxLength": 8000
+            },
+            {
+              "columnName": "RowId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "OperationId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ApplicationContext",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "CpuTimeMs",
+              "isNullable": true,
+              "dataType": "float",
+              "precision": 53
             }
           ]
         },
@@ -588,6 +720,48 @@
               "isNullable": true,
               "dataType": "datetime2",
               "datePrecision": 6
+            },
+            {
+              "columnName": "RowId",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "CaseType",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "Persona",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "MatchKind",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "ExtractionMethod",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "RoutingEvidence",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "CorrelationConfidence",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
             }
           ]
         },
@@ -632,6 +806,12 @@
             },
             {
               "columnName": "Details",
+              "isNullable": true,
+              "dataType": "varchar",
+              "maxLength": 8000
+            },
+            {
+              "columnName": "RowId",
               "isNullable": true,
               "dataType": "varchar",
               "maxLength": 8000

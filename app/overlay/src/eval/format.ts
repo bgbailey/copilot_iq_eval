@@ -38,9 +38,52 @@ export function truncate(text: string | null | undefined, n: number): string {
 }
 
 export function backendLabel(backend: string | null | undefined): string {
-  if (backend === 'fabric-native') return 'Option 1 · Fabric-native';
-  if (backend === 'foundry') return 'Option 2 · Foundry Evaluations';
-  return backend ?? '–';
+  if (backend === 'fabric-native') return 'Built-in checks (fabric-native)';
+  if (backend === 'foundry') return 'Azure AI Foundry evaluators';
+  if (!backend) return '–';
+  return backend;
+}
+
+export function targetLabel(target?: string | null): string {
+  if (!target) return '–';
+  switch (target) {
+    case 'copilot-chat':
+    case 'm365-copilot-chat-graph':
+    case 'copilot-chat-api':
+      return 'Microsoft 365 Copilot Chat';
+    case 'simulated':
+    case 'mock':
+      return 'Simulated tenant';
+    case 'transcript-import':
+    case 'import':
+      return 'Imported transcript';
+    case 'mcp-agent':
+    case 'fabric-iq-mcp-reference':
+      return 'Fabric IQ MCP agent';
+    case 'fabric-data-agent':
+      return 'Fabric Data Agent';
+    case 'm365-copilot-eval':
+    case 'evaluations-cli':
+      return 'M365 Copilot Evaluations CLI';
+    default:
+      return target;
+  }
+}
+
+export function routingEvidenceLabel(tier?: string | null): string {
+  if (!tier) return '–';
+  switch (tier) {
+    case 'engine+citations':
+      return 'Engine + Citations';
+    case 'citations-only':
+      return 'Citations only';
+    case 'tool_call':
+      return 'Verified Tool Call';
+    case 'unverified':
+      return 'Unverified';
+    default:
+      return tier;
+  }
 }
 
 /** Drop markdown code fences around a JSON reply for display. */

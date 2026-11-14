@@ -34,4 +34,14 @@ export class EvalRun extends Source({ schema: 'dbo', table: 'EvalRun', primaryKe
   @decimal({ optional: true, column: 'LatencyP50Ms' }) latencyP50Ms?: number;
   @decimal({ optional: true, column: 'LatencyP95Ms' }) latencyP95Ms?: number;
   @text({ optional: true, column: 'Notes', max: 8000 }) notes?: string;
+  @text({ optional: true, column: 'RowId', max: 8000 }) rowId?: string;
+  @text({ optional: true, column: 'Target', max: 8000 }) target?: string;
+  @int({ optional: true, column: 'K' }) k?: number;
+  @decimal({ optional: true, column: 'PassPowK' }) passPowK?: number;
+  @decimal({ optional: true, column: 'WilsonLow' }) wilsonLow?: number;
+  @decimal({ optional: true, column: 'WilsonHigh' }) wilsonHigh?: number;
+  @text({ optional: true, column: 'JudgePromptHash', max: 8000 }) judgePromptHash?: string;
+  @text({ optional: true, column: 'JudgeCalibrationId', max: 8000 }) judgeCalibrationId?: string;
+  @text({ optional: true, column: 'GatePolicyHash', max: 8000 }) gatePolicyHash?: string;
+  @int({ optional: true, column: 'SchemaVersion' }) schemaVersion?: number;
 }

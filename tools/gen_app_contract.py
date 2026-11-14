@@ -7,6 +7,7 @@ Writes:
 
 Run from the repo root:  python tools/gen_app_contract.py   (CI fails if the files are stale)
 """
+
 import json
 import sys
 from pathlib import Path
@@ -24,8 +25,13 @@ SQL_TYPES = {
     "real": {"dataType": "float", "precision": 53},
     "datetime": {"dataType": "datetime2", "datePrecision": 6},
 }
-ROW_NAMES = {"EvalRun": "EvalRunRow", "EvalQuestion": "EvalQuestionRow", "EvalResult": "EvalResultRow",
-             "FabricIqQuery": "FabricIqQueryRow", "EvalEvent": "EvalEventRow"}
+ROW_NAMES = {
+    "EvalRun": "EvalRunRow",
+    "EvalQuestion": "EvalQuestionRow",
+    "EvalResult": "EvalResultRow",
+    "FabricIqQuery": "FabricIqQueryRow",
+    "EvalEvent": "EvalEventRow",
+}
 
 
 def camel(name):
@@ -37,11 +43,15 @@ def app_tables():
 
 
 def contract_ts():
-    out = ["// Generated from src/cfeval/schema.py by tools/gen_app_contract.py. Do not edit by hand.",
-           "// Property names follow the Rayfin entity convention: camelCase of the SQL column name.", "",
-           "export type ColumnType = 'string' | 'int' | 'real' | 'datetime' | 'dynamic';",
-           "/** property name -> [SQL column name, telemetry type] */",
-           "export type ColumnMap = Record<string, readonly [string, ColumnType]>;", ""]
+    out = [
+        "// Generated from src/cfeval/schema.py by tools/gen_app_contract.py. Do not edit by hand.",
+        "// Property names follow the Rayfin entity convention: camelCase of the SQL column name.",
+        "",
+        "export type ColumnType = 'string' | 'int' | 'real' | 'datetime' | 'dynamic';",
+        "/** property name -> [SQL column name, telemetry type] */",
+        "export type ColumnMap = Record<string, readonly [string, ColumnType]>;",
+        "",
+    ]
     for name, spec in app_tables():
         out.append("/** %s */" % spec["doc"])
         out.append("export interface %s {" % ROW_NAMES[name])
@@ -77,15 +87,20 @@ def metadata_example():
             entry.update(SQL_TYPES[typ])
             cols.append(entry)
         tables.append({"tableName": name, "columns": cols})
-    return {"source": "eval_lakehouse", "connector": "fabric-sqlanalytics",
-            "connectionString": "Data Source=<sql-analytics-endpoint>;Initial Catalog=eval_lakehouse",
-            "discoveredAt": "2026-11-04T00:00:00.000Z", "schemas": [{"schemaName": "dbo", "tables": tables}]}
+    return {
+        "source": "eval_lakehouse",
+        "connector": "fabric-sqlanalytics",
+        "connectionString": "Data Source=<sql-analytics-endpoint>;Initial Catalog=eval_lakehouse",
+        "discoveredAt": "2026-11-04T00:00:00.000Z",
+        "schemas": [{"schemaName": "dbo", "tables": tables}],
+    }
 
 
 def outputs():
+    meta_json = json.dumps(metadata_example(), indent=2) + "\n"
     return {
         ROOT / "app" / "overlay" / "src" / "eval" / "generated" / "contract.ts": contract_ts(),
-        ROOT / "app" / "connectors" / "evals" / "metadata.example.json": json.dumps(metadata_example(), indent=2) + "\n",
+        ROOT / "app" / "connectors" / "evals" / "metadata.example.json": meta_json,
     }
 
 

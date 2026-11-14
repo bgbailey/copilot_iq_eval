@@ -124,7 +124,7 @@ export default function EvalApp() {
           <label>Data
             <select value={surface} onChange={(e) => setSurface(e.target.value)}>
               <option value="all">Live and simulated</option>
-              <option value="copilot-chat-api">Live only</option>
+              <option value="live">Live only</option>
               <option value="simulated">Simulated only</option>
             </select>
           </label>

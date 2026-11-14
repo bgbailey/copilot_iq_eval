@@ -1,4 +1,5 @@
 """Turn Copilot Chat attributions and answer links into typed artifacts."""
+
 import re
 from urllib.parse import unquote, urlparse
 
@@ -74,14 +75,22 @@ def extract_artifacts(attributions, answer_text=""):
         url = att.get("seeMoreWebUrl") or att.get("url") or ""
         if not url:
             continue
-        found.append(make_artifact(att.get("providerDisplayName") or "", url, "attribution",
-                                   att.get("attributionType") or "", att.get("attributionSource") or ""))
+        found.append(
+            make_artifact(
+                att.get("providerDisplayName") or "",
+                url,
+                "attribution",
+                att.get("attributionType") or "",
+                att.get("attributionSource") or "",
+            )
+        )
     text = answer_text or ""
     for m in _MD_LINK.finditer(text):
         found.append(make_artifact(m.group("name"), m.group("url"), "answer_link"))
     for m in _BARE_URL.finditer(_MD_LINK.sub(" ", text)):
         found.append(make_artifact("", m.group(0), "answer_link"))
-    unique, seen = [], set()
+    unique: list[dict] = []
+    seen: set[tuple[str, str]] = set()
     for a in found:
         key = (a["kind"], (a["item_id"] or a["url"]).lower())
         if key in seen:

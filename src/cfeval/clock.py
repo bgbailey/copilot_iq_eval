@@ -1,4 +1,5 @@
 """Clock abstraction so runs can be simulated quickly in tests and demo mode."""
+
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -23,7 +24,7 @@ def parse_iso(value):
     if "." in text:  # trim fractional seconds to 6 digits for fromisoformat
         head, frac = text.split(".", 1)
         digits = "".join(ch for ch in frac if ch.isdigit())
-        rest = frac[len(digits):]
+        rest = frac[len(digits) :]
         text = "%s.%s%s" % (head, (digits + "000000")[:6], rest)
     dt = datetime.fromisoformat(text)
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)

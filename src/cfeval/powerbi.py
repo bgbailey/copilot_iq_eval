@@ -5,11 +5,13 @@ send a DAX watermark that provides a workspace-monitoring ingestion progress sig
 Needs the tenant setting 'Dataset Execute Queries REST API' and Build (or
 Read) permission on the semantic models.
 """
+
 import time
 
 import requests
 
 from . import runtime
+from .config import HttpStatusError, request_with_retry
 from .scorers import normalize_name, split_list
 from .trace import watermark_dax
 
@@ -25,24 +27,76 @@ class PowerBiError(RuntimeError):
     pass
 
 
+def _q_model(q):
+    return getattr(q, "model", None) or getattr(q, "expected_model", "") or ""
+
+
+def _q_dax(q):
+    return getattr(q, "reference_dax", None) or getattr(q, "grounding_query_dax", "") or ""
+
+
+def _q_expected_val(q):
+    val = getattr(q, "expected_value", None)
+    if val is None:
+        val = getattr(q, "expected", None)
+    return val if isinstance(val, (int, float)) and not isinstance(val, bool) else None
+
+
+def _set_q_expected_val(q, value):
+    if hasattr(q, "expected_value"):
+        q.expected_value = value
+    if hasattr(q, "expected"):
+        q.expected = value
+
+
 class PowerBiClient:
-    def __init__(self, token_provider=None, session=None, base_url=PBI_API, max_retries=3, settings=None):
+    def __init__(
+        self,
+        token_provider=None,
+        session=None,
+        base_url=PBI_API,
+        max_retries=None,
+        timeout_s=None,
+        settings=None,
+        sleep_fn=time.sleep,
+    ):
         self._token = token_provider or (lambda: powerbi_token(settings))
         self.session = session or requests.Session()
         self.base_url = base_url.rstrip("/")
+        if max_retries is None:
+            max_retries = getattr(settings, "http_max_retries", 3) if settings is not None else 3
+        if timeout_s is None:
+            timeout_s = getattr(settings, "http_timeout_s", 120.0) if settings is not None else 120.0
         self.max_retries = max_retries
+        self.timeout_s = timeout_s
+        self.sleep_fn = sleep_fn
 
     def _request(self, method, path, body=None):
-        for attempt in range(self.max_retries + 1):
-            r = self.session.request(method, self.base_url + path, json=body, timeout=120,
-                                     headers={"Authorization": "Bearer " + self._token()}, allow_redirects=False)
-            if r.status_code == 429 and attempt < self.max_retries:
-                time.sleep(min(float(r.headers.get("Retry-After") or 5), 60))
-                continue
-            if r.status_code >= 300:
-                raise PowerBiError("Power BI API %s %s returned %s: %s" % (method, path, r.status_code, r.text[:500]))
-            return r.json() if r.content else {}
-        raise PowerBiError("Power BI API %s %s: retries exhausted" % (method, path))
+        timeout = (
+            (min(10.0, float(self.timeout_s)), float(self.timeout_s))
+            if isinstance(self.timeout_s, (int, float))
+            else self.timeout_s
+        )
+        try:
+            r = request_with_retry(
+                self.session,
+                method,
+                self.base_url + path,
+                json=body,
+                timeout=timeout,
+                max_retries=self.max_retries,
+                backoff_base=1.0,
+                sleep_fn=self.sleep_fn,
+                headers=lambda: {"Authorization": "Bearer " + self._token()},
+                allow_redirects=False,
+            )
+            return r.json() if getattr(r, "content", None) else {}
+        except HttpStatusError as exc:
+            raise PowerBiError(
+                "Power BI API %s %s returned %s: %s" % (method, path, exc.status_code, exc.body[:500])
+            ) from exc
+        except requests.RequestException as exc:
+            raise PowerBiError("Power BI API %s %s failed: %s" % (method, path, exc)) from exc
 
     def datasets(self, workspace_id):
         return self._request("GET", "/groups/%s/datasets" % workspace_id).get("value", [])
@@ -52,8 +106,11 @@ class PowerBiClient:
         return {normalize_name(d.get("name")): d.get("id") for d in self.datasets(workspace_id)}
 
     def execute_dax(self, workspace_id, dataset_id, dax):
-        out = self._request("POST", "/groups/%s/datasets/%s/executeQueries" % (workspace_id, dataset_id), {
-            "queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}})
+        out = self._request(
+            "POST",
+            "/groups/%s/datasets/%s/executeQueries" % (workspace_id, dataset_id),
+            {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}},
+        )
         result = (out.get("results") or [{}])[0]
         if result.get("error"):
             raise PowerBiError("DAX error: %s" % result["error"])
@@ -72,22 +129,24 @@ def refresh_expected_values(questions, client, workspace_id, rel_change=1e-9):
     ids = client.dataset_ids(workspace_id)
     report = []
     for q in questions:
-        entry = {"QuestionId": q.id, "Model": q.model, "Old": q.expected_value, "New": None, "Status": "", "Detail": ""}
-        if not q.reference_dax:
+        model_name = _q_model(q)
+        ref_dax = _q_dax(q)
+        old_val = _q_expected_val(q)
+        entry = {"QuestionId": q.id, "Model": model_name, "Old": old_val, "New": None, "Status": "", "Detail": ""}
+        if not ref_dax:
             entry.update(Status="skipped", Detail="no reference DAX")
-        elif normalize_name(q.model) not in ids:
-            entry.update(Status="error", Detail="semantic model '%s' not found in the workspace" % q.model)
+        elif normalize_name(model_name) not in ids:
+            entry.update(Status="error", Detail="semantic model '%s' not found in the workspace" % model_name)
         else:
             try:
-                value = client.scalar(workspace_id, ids[normalize_name(q.model)], q.reference_dax)
+                value = client.scalar(workspace_id, ids[normalize_name(model_name)], ref_dax)
                 if value is None:
                     entry.update(Status="error", Detail="reference DAX returned no rows")
                 else:
                     value = float(value)
-                    old = q.expected_value
-                    same = old is not None and abs(value - old) <= rel_change * max(abs(old), 1.0)
+                    same = old_val is not None and abs(value - old_val) <= rel_change * max(abs(old_val), 1.0)
                     entry.update(New=value, Status="unchanged" if same else "updated")
-                    q.expected_value = value
+                    _set_q_expected_val(q, value)
             except (PowerBiError, ValueError, TypeError) as exc:
                 entry.update(Status="error", Detail=str(exc)[:300])
         report.append(entry)
@@ -106,7 +165,8 @@ class DaxWatermark:
     def for_questions(cls, client, workspace_id, questions, include_decoys=False):
         ids = client.dataset_ids(workspace_id)
         for q in questions:
-            names = [q.model] + (split_list(q.decoys) if include_decoys else [])
+            decoys = getattr(q, "decoys", "") or ""
+            names = [_q_model(q)] + (split_list(decoys) if include_decoys else [])
             for name in names:
                 dataset_id = ids.get(normalize_name(name))
                 if dataset_id:

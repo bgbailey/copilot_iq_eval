@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible bug in cfeval, KQL setup, or the scorecard app
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please scrub all tenant IDs, subscription IDs, workspace/item GUIDs, UPNs, and tokens before submitting.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Concise description of the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact CLI command or minimal synthetic example (prefer `--mock` where possible).
+      placeholder: |
+        cfeval run --mock --golden data/golden/contoso.yaml --output-dir runs
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Python, and Node versions
+      placeholder: "Windows 11 / Python 3.12 / Node 24"
+    validations:
+      required: true

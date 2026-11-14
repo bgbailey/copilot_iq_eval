@@ -44,4 +44,11 @@ export class EvalResult extends Source({ schema: 'dbo', table: 'EvalResult', pri
   @text({ optional: true, column: 'JudgeNotes', max: 8000 }) judgeNotes?: string;
   @text({ optional: true, column: 'Error', max: 8000 }) error?: string;
   @date({ optional: true, column: 'ScoredUtc' }) scoredUtc?: Date;
+  @text({ optional: true, column: 'RowId', max: 8000 }) rowId?: string;
+  @text({ optional: true, column: 'CaseType', max: 8000 }) caseType?: string;
+  @text({ optional: true, column: 'Persona', max: 8000 }) persona?: string;
+  @text({ optional: true, column: 'MatchKind', max: 8000 }) matchKind?: string;
+  @text({ optional: true, column: 'ExtractionMethod', max: 8000 }) extractionMethod?: string;
+  @text({ optional: true, column: 'RoutingEvidence', max: 8000 }) routingEvidence?: string;
+  @text({ optional: true, column: 'CorrelationConfidence', max: 8000 }) correlationConfidence?: string;
 }

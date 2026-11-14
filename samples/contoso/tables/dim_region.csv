@@ -1,0 +1,5 @@
+region_code,region_name,annual_quota_fy25,ending_headcount_fy25,warehouse_code,stockout_alert
+NA,North America,5000000,145,WH-ORD,false
+EMEA,EMEA,3600000,110,WH-AMS,true
+APAC,APAC,2500000,85,WH-SIN,true
+LATAM,LATAM,1500000,40,WH-GRU,false

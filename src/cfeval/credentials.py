@@ -1,4 +1,5 @@
 """Azure credentials for Microsoft Foundry (judge model and Foundry Evaluations)."""
+
 from . import runtime
 
 
@@ -11,16 +12,20 @@ class _BoundCredential:
         if kwargs.get("tenant_id") and kwargs["tenant_id"].lower() != self.settings.tenant_id.lower():
             raise ValueError("Cross-tenant credential requests are disabled")
         if kwargs.get("claims"):
-            raise runtime.LoginRequired("A claims challenge requires an explicit labelled sign-in; no repair was started")
+            raise runtime.LoginRequired(
+                "A claims challenge requires an explicit labelled sign-in; no repair was started"
+            )
         resource = runtime.resource_for_scopes(scopes)
         if self.application_credential is None:
             token = runtime.azure_cli_token(resource, settings=self.settings)
             claims = runtime.inspect_acquired_token(
-                token, resource, self.settings.tenant_id, self.settings.operator_upn, self.settings.operator_object_id)
+                token, resource, self.settings.tenant_id, self.settings.operator_upn, self.settings.operator_object_id
+            )
         else:
             token = self.application_credential.get_token(*scopes, **kwargs).token
             claims = runtime.inspect_acquired_token(
-                token, resource, self.settings.tenant_id, client_id=self.settings.foundry_sp_client_id, delegated=False)
+                token, resource, self.settings.tenant_id, client_id=self.settings.foundry_sp_client_id, delegated=False
+            )
         from azure.core.credentials import AccessToken
 
         return AccessToken(token, int(claims["exp"]))
@@ -35,13 +40,17 @@ def foundry_credential(settings):
     if runtime.in_fabric_notebook():
         runtime.require_operator_settings(settings)
         if not (settings.foundry_sp_client_id and settings.foundry_sp_secret_name and settings.key_vault_url):
-            raise ValueError("In a Fabric notebook set FOUNDRY_SP_CLIENT_ID, FOUNDRY_SP_SECRET_NAME and "
-                             "KEY_VAULT_URL (or use an API key for the judge model).")
+            raise ValueError(
+                "In a Fabric notebook set FOUNDRY_SP_CLIENT_ID, FOUNDRY_SP_SECRET_NAME and "
+                "KEY_VAULT_URL (or use an API key for the judge model)."
+            )
         runtime._uuid(settings.foundry_sp_client_id, "FOUNDRY_SP_CLIENT_ID")
         from azure.identity import ClientSecretCredential
+
         secret = runtime.fabric_secret(settings.key_vault_url, settings.foundry_sp_secret_name, settings=settings)
-        return _BoundCredential(settings, ClientSecretCredential(
-            settings.tenant_id, settings.foundry_sp_client_id, secret))
+        return _BoundCredential(
+            settings, ClientSecretCredential(settings.tenant_id, settings.foundry_sp_client_id, secret)
+        )
     runtime.require_operator_settings(settings, cli=True)
     return _BoundCredential(settings)
 

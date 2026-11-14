@@ -1,0 +1,12 @@
+# Case-insensitive terms/regexes banned from public tracked files.
+# Lines starting with `re:` are evaluated as regular expressions; plain lines match case-insensitively.
+# Additional operator-specific terms may be supplied at runtime via CFEVAL_PRIVATE_DENYLIST.
+re:\bScout\b
+re:\bduring the meeting\b
+re:\bFriday\s+(?:demo|rehearsal|proof|readiness)\b
+re:\bapproved allowance\b
+re:\bseparately approved\b
+re:\bthe owner explicitly approves\b
+Evidence gaps / still thin
+re:\b[A-Za-z0-9._%+-]+@microsoft\.com\b
+re:\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.onmicrosoft\.com\b

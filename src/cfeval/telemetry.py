@@ -1,4 +1,5 @@
 """Stage timings for end-to-end telemetry (EvalEvent rows)."""
+
 import time
 from contextlib import contextmanager
 
@@ -10,9 +11,17 @@ class Telemetry:
         self.rows = []
 
     def event(self, stage, duration_ms, ask_id="", status="ok", **details):
-        self.rows.append({"RunId": self.run_id, "AskId": ask_id, "EventTimeUtc": self.clock.now(),
-                          "Stage": stage, "DurationMs": round(float(duration_ms), 1), "Status": status,
-                          "Details": details or {}})
+        self.rows.append(
+            {
+                "RunId": self.run_id,
+                "AskId": ask_id,
+                "EventTimeUtc": self.clock.now(),
+                "Stage": stage,
+                "DurationMs": round(float(duration_ms), 1),
+                "Status": status,
+                "Details": details or {},
+            }
+        )
 
     @contextmanager
     def stage(self, stage, ask_id="", **details):

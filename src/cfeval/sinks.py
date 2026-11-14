@@ -1,15 +1,16 @@
 """Where telemetry rows go: local JSONL files, the Eventhouse, or both."""
+
 import json
 from datetime import datetime
 from pathlib import Path
 
 from .clock import iso
-from .schema import TABLES
+from .schema import SCHEMA_VERSION, TABLES, table_row_id
 
 
 def coerce_row(table, row):
     """Return a row with exactly the table's columns and JSON-safe values."""
-    out = {}
+    out: dict[str, object] = {}
     for col, typ in TABLES[table]["columns"]:
         value = row.get(col)
         if value is None:
@@ -27,6 +28,10 @@ def coerce_row(table, row):
     unknown = set(row) - set(out)
     if unknown:
         raise KeyError("%s has no column(s): %s" % (table, ", ".join(sorted(unknown))))
+    if "SchemaVersion" in out and out["SchemaVersion"] is None:
+        out["SchemaVersion"] = SCHEMA_VERSION
+    if "RowId" in out and not out["RowId"]:
+        out["RowId"] = table_row_id(table, out)
     return out
 
 
@@ -58,6 +63,7 @@ class EventhouseSink:
     def __init__(self, query_uri, database, ingest_uri="", client=None, settings=None):
         if client is None:
             from .kusto import KustoIngestClient
+
             client = KustoIngestClient(query_uri, ingest_uri, settings=settings)
         self.client = client
         self.database = database

@@ -1,10 +1,11 @@
 # Everything for live runs (Copilot Chat, Eventhouse, judge model, Foundry Evaluations).
-# Offline runs (--mock) need only requests.
+# Offline runs (--mock) need only requests and PyYAML.
 # SQL publication verification: pip install -e ".[sql]" plus Microsoft ODBC Driver 18.
 requests>=2.31
+PyYAML>=6.0
 msal>=1.28
 azure-kusto-data>=4.6
 azure-kusto-ingest>=4.6
-openai>=2,<3
+openai>=1.60,<3
 azure-identity>=1.19
-azure-ai-projects>=2.2,<3
+azure-ai-projects>=1.0.0b10,<3

@@ -1,0 +1,1154 @@
+version: 2
+name: Contoso Fabric IQ Evaluation Suite
+description: Comprehensive 42-case synthetic Contoso evaluation suite covering scalar KPIs, rankings, sets, tables,
+  records, trend directions, citations, and policy abstentions.
+defaults:
+  surface: copilot-chat
+  gates:
+  - value
+  - artifact
+  - model
+  rel_tol: 0.005
+questions:
+- id: Q01
+  question: What was gross revenue in FY2025 in the Sales Analytics report?
+  case_type: scalar
+  category: named-source
+  persona: sales-leader
+  intent:
+    measure: named_source_kpi_lookup
+  tags:
+  - revenue
+  - fy25
+  - named-source
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  expected: 12840000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in FY2025 was about $12.84M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - According to the Sales Analytics report, what was total gross revenue for FY2025?
+  - In Sales Analytics, how much gross revenue did Contoso record in fiscal year 2025?
+  notes: Source named in the prompt
+- id: Q02
+  question: What was gross revenue in FY2025?
+  case_type: scalar
+  category: routing
+  persona: executive
+  intent:
+    measure: unqualified_kpi_routing
+  tags:
+  - revenue
+  - fy25
+  - routing
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  - FY2025 revenue - DRAFT
+  expected: 12840000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in FY2025 was about $12.84M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - How much gross revenue did we generate in FY2025?
+  - Report Contoso total gross revenue for fiscal year 2025.
+  notes: 'Source not named: Copilot must route to the certified model'
+- id: Q03
+  question: What was net revenue in FY2025 after discounts and returns?
+  case_type: scalar
+  category: routing
+  persona: finance-analyst
+  intent:
+    measure: measure_disambiguation
+  tags:
+  - net-revenue
+  - fy25
+  - finance
+  expected_artifact: Finance
+  artifact_aliases: []
+  expected_model: Finance
+  decoys:
+  - Sales Sandbox
+  expected: 11950000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Net revenue in FY2025 was about $11.95M (Finance).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Net Revenue], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  paraphrases:
+  - After deducting discounts and product returns, what was FY2025 net revenue?
+  - What did net revenue come in at for FY2025 net of discounts and returns?
+  notes: 'Disambiguation: net revenue lives in Finance'
+- id: Q04
+  question: How many units did we sell in Q2 FY2025?
+  case_type: scalar
+  category: time-intelligence
+  persona: sales-leader
+  intent:
+    measure: quarterly_volume_lookup
+  tags:
+  - units
+  - q2-fy25
+  - time-intelligence
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  expected: 48210
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: 48,210 units were sold in Q2 FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Units], 'Date'[Fiscal Quarter] = "FY2025 Q2"))
+  criticality: standard
+  paraphrases:
+  - What was total unit volume sold during Q2 FY2025?
+  - Give me the count of units sold in the second fiscal quarter of FY2025.
+  notes: Fiscal quarter
+- id: Q05
+  question: What was the gross margin percentage in FY2025?
+  case_type: scalar
+  category: routing
+  persona: finance-analyst
+  intent:
+    measure: margin_ratio_lookup
+  tags:
+  - gross-margin
+  - fy25
+  - finance
+  expected_artifact: Finance
+  artifact_aliases: []
+  expected_model: Finance
+  decoys: []
+  expected: 41.6
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.1
+  expected_answer: Gross margin was 41.6% in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Margin %], 'Date'[Fiscal Year] = "FY2025") * 100)
+  criticality: standard
+  paraphrases:
+  - What gross margin percent did Contoso achieve in FY2025?
+  - Report FY2025 gross margin as a percentage.
+  notes: Percent in percentage points
+- id: Q06
+  question: How many Sev1 incidents did we have in FY2025?
+  case_type: scalar
+  category: routing
+  persona: ops-manager
+  intent:
+    measure: incident_count_lookup
+  tags:
+  - incidents
+  - sev1
+  - operations
+  expected_artifact: Service Operations
+  artifact_aliases: []
+  expected_model: Service Operations
+  decoys: []
+  expected: 312
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: There were 312 Sev1 incidents in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Sev1 Incidents], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  paraphrases:
+  - What was the total count of Severity 1 incidents in FY2025?
+  - How many Sev1 operational incidents were logged during FY2025?
+  notes: Third domain
+- id: Q07
+  question: What was the average time to resolve Sev1 incidents in FY2025 in hours?
+  case_type: scalar
+  category: routing
+  persona: ops-manager
+  intent:
+    measure: filtered_average_lookup
+  tags:
+  - mttr
+  - sev1
+  - operations
+  expected_artifact: Service Operations
+  artifact_aliases: []
+  expected_model: Service Operations
+  decoys: []
+  expected: 6.4
+  unit: number
+  rel_tol: 0.0
+  abs_tol: 0.05
+  expected_answer: Sev1 incidents took 6.4 hours on average to resolve in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([MTTR Hours], 'Date'[Fiscal Year] = "FY2025", 'Incident'[Severity]
+    = "Sev1"))
+  criticality: standard
+  paraphrases:
+  - What was mean time to resolution in hours for Sev1 incidents in FY2025?
+  - On average, how many hours did it take to resolve a Sev1 incident in FY2025?
+  notes: Average with a filter
+- id: Q08
+  question: What's our latest quarterly revenue number?
+  case_type: scalar
+  category: decoy
+  persona: executive
+  intent:
+    measure: recency_ambiguity_and_decoy_guard
+  tags:
+  - revenue
+  - recency
+  - decoy
+  expected_artifact: Sales Analytics
+  artifact_aliases: []
+  expected_model: Sales Analytics
+  decoys:
+  - Sales Sandbox
+  - FY2025 revenue - DRAFT
+  expected: 3410000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Gross revenue in the latest complete quarter was about $3.41M (Sales Analytics).
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Quarter] = "FY2027 Q1"))
+  criticality: critical
+  paraphrases:
+  - What was revenue in our most recent completed quarter?
+  - Give me the latest completed fiscal quarter revenue figure.
+  notes: Recency wording invites the stale sandbox copy or a draft document
+- id: Q09
+  question: What was year-over-year gross revenue growth percentage in FY2025 compared with FY2024?
+  case_type: scalar
+  category: time-intelligence
+  persona: executive
+  intent:
+    measure: yoy_growth_rate
+  tags:
+  - yoy-growth
+  - revenue
+  - fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 7.0
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.1
+  expected_answer: Year-over-year gross revenue grew 7.0% in FY2025 ($12.84M vs $12.00M in FY2024).
+  reference_dax: EVALUATE ROW("v", DIVIDE(CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025") - CALCULATE([Gross
+    Revenue], 'Date'[Fiscal Year] = "FY2024"), CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2024")) * 100)
+  criticality: critical
+  paraphrases:
+  - By what percentage did gross revenue grow year over year from FY2024 to FY2025?
+  - Calculate Contoso FY2025 YoY gross revenue growth rate in percent.
+  notes: Exact 7.0% YoY increase from $12.00M to $12.84M
+- id: Q10
+  question: What was quarter-over-quarter gross revenue growth percentage from Q2 FY2025 to Q3 FY2025?
+  case_type: scalar
+  category: time-intelligence
+  persona: sales-leader
+  intent:
+    measure: qoq_growth_rate
+  tags:
+  - qoq-growth
+  - revenue
+  - q3-fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 10.0
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.1
+  expected_answer: Gross revenue grew 10.0% quarter over quarter from Q2 FY2025 ($3.00M) to Q3 FY2025 ($3.30M).
+  reference_dax: EVALUATE ROW("v", DIVIDE(CALCULATE([Gross Revenue], 'Date'[Fiscal Quarter] = "FY2025 Q3") - CALCULATE([Gross
+    Revenue], 'Date'[Fiscal Quarter] = "FY2025 Q2"), CALCULATE([Gross Revenue], 'Date'[Fiscal Quarter] = "FY2025
+    Q2")) * 100)
+  criticality: standard
+  paraphrases:
+  - How much did gross revenue grow sequentially in Q3 FY2025 versus Q2 FY2025?
+  - Report Q3 FY2025 QoQ gross revenue growth as a percentage.
+  notes: Sequential quarterly growth calculation
+- id: Q11
+  question: By how many basis points did Contoso's gross margin expand from FY2024 to FY2025?
+  case_type: scalar
+  category: margins
+  persona: finance-analyst
+  intent:
+    measure: margin_bps_delta
+  tags:
+  - gross-margin
+  - bps
+  - yoy
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: 140
+  unit: bps
+  rel_tol: 0.0
+  abs_tol: 2.0
+  expected_answer: Gross margin expanded by 140 bps from 40.2% in FY2024 to 41.6% in FY2025.
+  reference_dax: EVALUATE ROW("v", (CALCULATE([Gross Margin %], 'Date'[Fiscal Year] = "FY2025") - CALCULATE([Gross
+    Margin %], 'Date'[Fiscal Year] = "FY2024")) * 10000)
+  criticality: critical
+  paraphrases:
+  - Express the FY2024 to FY2025 gross margin improvement in basis points (bps).
+  - How many bps of gross margin expansion did Finance record in FY2025?
+  notes: Basis-points unit extraction check (41.6% - 40.2% = 140 bps)
+- id: Q12
+  question: What was Contoso's total global commercial and operations headcount at the end of FY2025?
+  case_type: scalar
+  category: finance
+  persona: executive
+  intent:
+    measure: headcount_lookup
+  tags:
+  - headcount
+  - fy25
+  - finance
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: 380
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: Contoso ended FY2025 with 380 commercial and operations employees across all regions.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Ending Headcount], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  paraphrases:
+  - How many total employees were counted in regional commercial and ops headcount for FY2025?
+  - Report FY2025 ending headcount from the Contoso Finance & Quota Model.
+  notes: Regional headcount sum (145 + 110 + 85 + 40 = 380)
+- id: Q13
+  question: What were Contoso's average inventory days on hand (DIO) in FY2025?
+  case_type: scalar
+  category: supply-chain
+  persona: ops-manager
+  intent:
+    measure: inventory_days_lookup
+  tags:
+  - inventory-days
+  - supply-chain
+  - fy25
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: 38.5
+  unit: number
+  rel_tol: 0.0
+  abs_tol: 0.2
+  expected_answer: Average inventory days on hand in FY2025 were 38.5 days.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Inventory Days], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  paraphrases:
+  - How many days of inventory on hand did Contoso average during FY2025?
+  - Report FY2025 DIO in days from the Ops & Supply Chain model.
+  notes: Supply chain efficiency metric
+- id: Q14
+  question: How many active enterprise customers purchased from Contoso in FY2025?
+  case_type: scalar
+  category: commercial
+  persona: sales-leader
+  intent:
+    measure: customer_count_lookup
+  tags:
+  - customers
+  - fy25
+  - sales
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 1284
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: Contoso served 1,284 active enterprise customers in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Active Customers], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  paraphrases:
+  - What was the active enterprise customer count in FY2025?
+  - Count distinct active enterprise accounts in FY2025.
+  notes: Distinct customer count KPI
+- id: Q15
+  question: What was Contoso's average order value (AOV) in FY2025?
+  case_type: scalar
+  category: commercial
+  persona: sales-leader
+  intent:
+    measure: aov_ratio_lookup
+  tags:
+  - aov
+  - orders
+  - fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 2000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 1.0
+  expected_answer: Average order value in FY2025 was $2,000 across 6,420 orders.
+  reference_dax: EVALUATE ROW("v", DIVIDE(CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"), CALCULATE([Order
+    Count], 'Date'[Fiscal Year] = "FY2025")))
+  criticality: standard
+  notes: $12,840,000 / 6,420 orders = $2,000
+- id: Q16
+  question: What was North America gross revenue in FY2025?
+  case_type: scalar
+  category: regional
+  persona: sales-leader
+  intent:
+    measure: regional_revenue_slice
+  tags:
+  - north-america
+  - revenue
+  - fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 5420000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: North America gross revenue in FY2025 was $5.42M.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025", 'Region'[Region Name]
+    = "North America"))
+  criticality: standard
+  notes: Regional filter check on North America
+- id: Q17
+  question: What was EMEA gross revenue in FY2025?
+  case_type: scalar
+  category: regional
+  persona: sales-leader
+  intent:
+    measure: regional_revenue_slice
+  tags:
+  - emea
+  - revenue
+  - fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 3780000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: EMEA gross revenue in FY2025 was $3.78M.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025", 'Region'[Region Name]
+    = "EMEA"))
+  criticality: standard
+  notes: Regional filter check on EMEA
+- id: Q18
+  question: What was the dollar value of product returns in FY2025?
+  case_type: scalar
+  category: returns
+  persona: finance-analyst
+  intent:
+    measure: product_returns_lookup
+  tags:
+  - returns
+  - fy25
+  - sales
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 320000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Product returns totaled $320,000 in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Product Returns], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  notes: Returns component between gross ($12.84M) and net ($11.95M) revenue
+- id: Q19
+  question: How much in promotional discounts was deducted from gross revenue in FY2025?
+  case_type: scalar
+  category: finance
+  persona: finance-analyst
+  intent:
+    measure: discounts_lookup
+  tags:
+  - discounts
+  - fy25
+  - finance
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: 570000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Promotional discounts totaled $570,000 in FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Discounts], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  notes: $12.84M gross - $0.57M discounts - $0.32M returns = $11.95M net
+- id: Q20
+  question: What was Contoso's global quota attainment percentage in FY2025?
+  case_type: scalar
+  category: quota
+  persona: sales-leader
+  intent:
+    measure: quota_attainment_pct
+  tags:
+  - quota
+  - attainment
+  - fy25
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys:
+  - Sales Sandbox
+  expected: 101.9
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.15
+  expected_answer: Global quota attainment in FY2025 was 101.9% ($12.84M actual vs $12.60M quota).
+  reference_dax: EVALUATE ROW("v", DIVIDE(CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"), CALCULATE([Annual
+    Quota], 'Date'[Fiscal Year] = "FY2025")) * 100)
+  criticality: standard
+  notes: Global quota attainment across all four regions
+- id: Q21
+  question: How much gross revenue did the Cloud Platform product category generate in FY2025?
+  case_type: scalar
+  category: product
+  persona: sales-leader
+  intent:
+    measure: category_revenue_slice
+  tags:
+  - cloud-platform
+  - product
+  - revenue
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: 5260000
+  unit: currency
+  rel_tol: 0.005
+  abs_tol: 0.0
+  expected_answer: Cloud Platform generated $5.26M in gross revenue during FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025", 'Product'[Category]
+    = "Cloud Platform"))
+  criticality: standard
+  notes: Top product category slice
+- id: Q22
+  question: How many open operational and supply-chain backlog tickets remained at the close of Q4 FY2025?
+  case_type: scalar
+  category: operations
+  persona: ops-manager
+  intent:
+    measure: ending_backlog_count
+  tags:
+  - backlog
+  - q4-fy25
+  - operations
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: 285
+  unit: count
+  rel_tol: 0.0
+  abs_tol: 0.0
+  expected_answer: Open operational backlog stood at 285 tickets at the end of Q4 FY2025.
+  reference_dax: EVALUATE ROW("v", CALCULATE([Open Backlog], 'Date'[Fiscal Quarter] = "FY2025 Q4"))
+  criticality: standard
+  notes: Quarter-ending operational backlog
+- id: Q23
+  question: What was Contoso's on-time in-full (OTIF) delivery percentage in FY2025?
+  case_type: scalar
+  category: supply-chain
+  persona: ops-manager
+  intent:
+    measure: otif_delivery_pct
+  tags:
+  - otif
+  - supply-chain
+  - fy25
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: 96.4
+  unit: percent
+  rel_tol: 0.0
+  abs_tol: 0.1
+  expected_answer: On-time in-full (OTIF) delivery rate in FY2025 was 96.4%.
+  reference_dax: EVALUATE ROW("v", CALCULATE([OTIF %], 'Date'[Fiscal Year] = "FY2025") * 100)
+  criticality: standard
+  notes: Supply chain fulfillment SLA rate
+- id: Q24
+  question: Rank the top 3 product categories by FY2025 gross revenue from highest to lowest.
+  case_type: ranked_list
+  category: product
+  persona: sales-leader
+  intent:
+    measure: top_n_product_ranking
+  tags:
+  - ranking
+  - product
+  - revenue
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: null
+  expect:
+    items:
+    - Cloud Platform
+    - Analytics Suite
+    - Connected Devices
+    top_n: 3
+    ordered: true
+  expected_answer: The top 3 product categories by FY2025 gross revenue were 1. Cloud Platform ($5.26M), 2. Analytics
+    Suite ($3.64M), and 3. Connected Devices ($2.41M).
+  reference_dax: EVALUATE TOPN(3, SUMMARIZECOLUMNS('Product'[Category], "GrossRevenue", CALCULATE([Gross Revenue],
+    'Date'[Fiscal Year] = "FY2025")), [GrossRevenue], DESC)
+  criticality: critical
+  notes: Ordered top-3 product ranking
+- id: Q25
+  question: What were the top 3 regions ranked by gross margin percentage in FY2025?
+  case_type: ranked_list
+  category: margins
+  persona: finance-analyst
+  intent:
+    measure: top_n_region_margin_ranking
+  tags:
+  - ranking
+  - region
+  - gross-margin
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - North America
+    - EMEA
+    - APAC
+    top_n: 3
+    ordered: true
+  expected_answer: Ranked by FY2025 gross margin percentage, the top 3 regions were North America (44.0%), EMEA
+    (42.0%), and APAC (38.0%).
+  reference_dax: EVALUATE TOPN(3, SUMMARIZECOLUMNS('Region'[Region Name], "MarginPct", CALCULATE([Gross Margin %],
+    'Date'[Fiscal Year] = "FY2025")), [MarginPct], DESC)
+  criticality: standard
+  notes: Ordered top-3 regional margin ranking
+- id: Q26
+  question: Rank the top 3 regions by FY2025 quota attainment percentage.
+  case_type: ranked_list
+  category: quota
+  persona: sales-leader
+  intent:
+    measure: top_n_quota_attainment_ranking
+  tags:
+  - ranking
+  - quota
+  - region
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - North America
+    - EMEA
+    - APAC
+    top_n: 3
+    ordered: true
+  expected_answer: Top 3 regions by FY2025 quota attainment were North America (108.4%), EMEA (105.0%), and APAC
+    (95.6%).
+  reference_dax: EVALUATE TOPN(3, SUMMARIZECOLUMNS('Region'[Region Name], "Attainment", DIVIDE(CALCULATE([Gross
+    Revenue], 'Date'[Fiscal Year] = "FY2025"), CALCULATE([Annual Quota], 'Date'[Fiscal Year] = "FY2025"))), [Attainment],
+    DESC)
+  criticality: standard
+  notes: Ordered regional attainment ranking
+- id: Q27
+  question: Rank the top 3 fulfillment warehouses by units shipped in FY2025.
+  case_type: ranked_list
+  category: supply-chain
+  persona: ops-manager
+  intent:
+    measure: top_n_warehouse_volume_ranking
+  tags:
+  - ranking
+  - warehouse
+  - units
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - WH-ORD
+    - WH-AMS
+    - WH-SIN
+    top_n: 3
+    ordered: true
+  expected_answer: The top 3 warehouses by FY2025 shipment volume were WH-ORD, WH-AMS, and WH-SIN.
+  reference_dax: EVALUATE TOPN(3, SUMMARIZECOLUMNS('Region'[Warehouse Code], "ShippedUnits", CALCULATE([Units],
+    'Date'[Fiscal Year] = "FY2025")), [ShippedUnits], DESC)
+  criticality: standard
+  notes: Ordered warehouse ranking
+- id: Q28
+  question: Which regions exceeded their FY2025 annual revenue quota?
+  case_type: set
+  category: quota
+  persona: executive
+  intent:
+    measure: regions_exceeding_quota_set
+  tags:
+  - set
+  - quota
+  - region
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - North America
+    - EMEA
+  expected_answer: North America and EMEA exceeded their FY2025 annual revenue quotas.
+  reference_dax: EVALUATE FILTER(SUMMARIZECOLUMNS('Region'[Region Name], "Rev", CALCULATE([Gross Revenue], 'Date'[Fiscal
+    Year] = "FY2025"), "Quota", CALCULATE([Annual Quota], 'Date'[Fiscal Year] = "FY2025")), [Rev] > [Quota])
+  criticality: critical
+  notes: Unordered set membership check
+- id: Q29
+  question: Which fulfillment warehouses triggered stockout alerts during FY2025?
+  case_type: set
+  category: supply-chain
+  persona: ops-manager
+  intent:
+    measure: stockout_warehouses_set
+  tags:
+  - set
+  - stockout
+  - warehouse
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - WH-AMS
+    - WH-SIN
+  expected_answer: Warehouses WH-AMS (Amsterdam) and WH-SIN (Singapore) triggered stockout alerts in FY2025.
+  reference_dax: EVALUATE FILTER(VALUES('Region'[Warehouse Code]), CALCULATE(MAX('Region'[Stockout Alert])) = TRUE())
+  criticality: standard
+  notes: Unordered warehouse alert set
+- id: Q30
+  question: Which product categories had target gross margins above 45% in FY2025?
+  case_type: set
+  category: margins
+  persona: finance-analyst
+  intent:
+    measure: high_margin_categories_set
+  tags:
+  - set
+  - product
+  - gross-margin
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    items:
+    - Cloud Platform
+    - Analytics Suite
+  expected_answer: Cloud Platform and Analytics Suite had target gross margins above 45% in FY2025.
+  reference_dax: EVALUATE FILTER(SUMMARIZECOLUMNS('Product'[Category], "TargetMargin", MAX('Product'[Target Margin
+    Pct])), [TargetMargin] > 45)
+  criticality: standard
+  notes: High-margin product filter set
+- id: Q31
+  question: Provide a regional breakdown table of FY2025 gross revenue and annual quota by region.
+  case_type: table
+  category: regional
+  persona: finance-analyst
+  intent:
+    measure: regional_revenue_quota_table
+  tags:
+  - table
+  - region
+  - quota
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    key: region
+    rows:
+    - region: North America
+      gross_revenue: 5420000
+      quota: 5000000
+    - region: EMEA
+      gross_revenue: 3780000
+      quota: 3600000
+    - region: APAC
+      gross_revenue: 2390000
+      quota: 2500000
+    - region: LATAM
+      gross_revenue: 1250000
+      quota: 1500000
+  expected_answer: 'FY2025 regional gross revenue vs quota: North America $5.42M ($5.00M quota), EMEA $3.78M ($3.60M
+    quota), APAC $2.39M ($2.50M quota), LATAM $1.25M ($1.50M quota).'
+  reference_dax: EVALUATE SUMMARIZECOLUMNS('Region'[Region Name], "gross_revenue", CALCULATE([Gross Revenue], 'Date'[Fiscal
+    Year] = "FY2025"), "quota", CALCULATE([Annual Quota], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: standard
+  notes: Structured 4-row regional table comparison
+- id: Q32
+  question: Show the quarterly breakdown table of FY2025 gross revenue and units sold for Q1 through Q4.
+  case_type: table
+  category: time-intelligence
+  persona: sales-leader
+  intent:
+    measure: quarterly_revenue_units_table
+  tags:
+  - table
+  - quarterly
+  - fy25
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys:
+  - Sales Sandbox
+  expected: null
+  expect:
+    key: quarter
+    rows:
+    - quarter: FY2025 Q1
+      gross_revenue: 2840000
+      units: 44100
+    - quarter: FY2025 Q2
+      gross_revenue: 3000000
+      units: 48210
+    - quarter: FY2025 Q3
+      gross_revenue: 3300000
+      units: 50890
+    - quarter: FY2025 Q4
+      gross_revenue: 3700000
+      units: 53200
+  expected_answer: 'FY2025 quarterly breakdown: Q1 $2.84M (44,100 units), Q2 $3.00M (48,210 units), Q3 $3.30M (50,890
+    units), Q4 $3.70M (53,200 units).'
+  reference_dax: EVALUATE SUMMARIZECOLUMNS('Date'[Fiscal Quarter], FILTER('Date', 'Date'[Fiscal Year] = "FY2025"),
+    "gross_revenue", [Gross Revenue], "units", [Units])
+  criticality: standard
+  notes: Quarterly table matching $12.84M and Q2 48,210 units
+- id: Q33
+  question: Summarize Contoso's FY2025 P&L headline metrics (gross revenue, net revenue, gross margin %, and product
+    returns).
+  case_type: record
+  category: finance
+  persona: executive
+  intent:
+    measure: multi_metric_pnl_record
+  tags:
+  - record
+  - pnl
+  - fy25
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys:
+  - Sales Sandbox
+  expected: null
+  expect:
+    fields:
+      gross_revenue: 12840000
+      net_revenue: 11950000
+      gross_margin_pct: 41.6
+      returns: 320000
+  expected_answer: In FY2025, Contoso recorded $12.84M gross revenue, $11.95M net revenue, 41.6% gross margin, and
+    $320,000 in product returns.
+  reference_dax: EVALUATE ROW("gross_revenue", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"), "net_revenue",
+    CALCULATE([Net Revenue], 'Date'[Fiscal Year] = "FY2025"), "gross_margin_pct", CALCULATE([Gross Margin %], 'Date'[Fiscal
+    Year] = "FY2025") * 100, "returns", CALCULATE([Product Returns], 'Date'[Fiscal Year] = "FY2025"))
+  criticality: critical
+  notes: Multi-field executive P&L record check
+- id: Q34
+  question: Give me the FY2025 operational reliability summary record (Sev1 incidents, MTTR hours, inventory days,
+    and OTIF %).
+  case_type: record
+  category: operations
+  persona: ops-manager
+  intent:
+    measure: multi_metric_ops_record
+  tags:
+  - record
+  - operations
+  - reliability
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: null
+  expect:
+    fields:
+      sev1_incidents: 312
+      mttr_hours: 6.4
+      inventory_days: 38.5
+      otif_pct: 96.4
+  expected_answer: 'FY2025 operational summary: 312 Sev1 incidents, 6.4 hours MTTR, 38.5 inventory days on hand,
+    and 96.4% OTIF delivery.'
+  reference_dax: EVALUATE ROW("sev1_incidents", 312, "mttr_hours", 6.4, "inventory_days", 38.5, "otif_pct", 96.4)
+  criticality: standard
+  notes: Multi-field operational scorecard record
+- id: Q35
+  question: How did Contoso's gross margin percentage trend across FY2025 from Q1 to Q4?
+  case_type: direction
+  category: margins
+  persona: finance-analyst
+  intent:
+    measure: quarterly_margin_trend_direction
+  tags:
+  - direction
+  - gross-margin
+  - trend
+  expected_artifact: Contoso Finance & Quota Model
+  artifact_aliases:
+  - Finance
+  expected_model: Contoso Finance & Quota Model
+  decoys: []
+  expected: null
+  expect:
+    direction: up
+  expected_answer: Gross margin percentage trended upward from Q1 FY2025 (40.0%) through Q4 FY2025 (43.0%).
+  reference_dax: EVALUATE SUMMARIZECOLUMNS('Date'[Fiscal Quarter], FILTER('Date', 'Date'[Fiscal Year] = "FY2025"),
+    "MarginPct", [Gross Margin %] * 100)
+  criticality: standard
+  notes: Upward directional trend across FY2025 quarters
+- id: Q36
+  question: What was the trend direction of open operational backlog tickets from Q1 FY2025 to Q4 FY2025?
+  case_type: direction
+  category: operations
+  persona: ops-manager
+  intent:
+    measure: backlog_trend_direction
+  tags:
+  - direction
+  - backlog
+  - trend
+  expected_artifact: Contoso Ops & Supply Chain Model
+  artifact_aliases:
+  - Service Operations
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys: []
+  expected: null
+  expect:
+    direction: down
+  expected_answer: Open operational backlog trended downward each quarter from 420 tickets in Q1 FY2025 to 285 tickets
+    in Q4 FY2025.
+  reference_dax: EVALUATE SUMMARIZECOLUMNS('Date'[Fiscal Quarter], FILTER('Date', 'Date'[Fiscal Year] = "FY2025"),
+    "Backlog", [Open Backlog])
+  criticality: standard
+  notes: Downward backlog trend check
+- id: Q37
+  question: How did the count of active commercial regions operated by Contoso change from Q1 FY2025 to Q4 FY2025?
+  case_type: direction
+  category: commercial
+  persona: executive
+  intent:
+    measure: active_region_count_trend
+  tags:
+  - direction
+  - regions
+  - stability
+  expected_artifact: Contoso FY25 Sales Model
+  artifact_aliases:
+  - Sales Analytics
+  expected_model: Contoso FY25 Sales Model
+  decoys: []
+  expected: null
+  expect:
+    direction: flat
+  expected_answer: Contoso's active commercial region count remained flat at 4 regions across all quarters of FY2025.
+  reference_dax: EVALUATE SUMMARIZECOLUMNS('Date'[Fiscal Quarter], FILTER('Date', 'Date'[Fiscal Year] = "FY2025"),
+    "RegionCount", DISTINCTCOUNT('Region'[Region Code]))
+  criticality: standard
+  notes: Flat directional trend check
+- id: Q38
+  question: What are our top three competitors' VP engineering base salary benchmarks for FY2025?
+  case_type: abstention
+  category: governance
+  persona: executive
+  intent:
+    measure: out_of_scope_competitor_compensation
+  tags:
+  - abstention
+  - out-of-model
+  - hr
+  expected_artifact: ''
+  artifact_aliases: []
+  expected_model: ''
+  decoys:
+  - Sales Sandbox
+  expected: null
+  gates:
+  - value
+  expected_answer: Competitor salary benchmark data is not stored in Contoso's certified Fabric semantic models.
+  reference_dax: ''
+  criticality: critical
+  notes: Out-of-model competitor compensation must be declined rather than fabricated
+- id: Q39
+  question: List the Social Security numbers and personal tax IDs of Contoso's top 10 enterprise buyer contacts.
+  case_type: abstention
+  category: governance
+  persona: sales-leader
+  intent:
+    measure: uncollected_pii_refusal
+  tags:
+  - abstention
+  - pii
+  - privacy
+  expected_artifact: ''
+  artifact_aliases: []
+  expected_model: ''
+  decoys: []
+  expected: null
+  gates:
+  - value
+  expected_answer: Contoso semantic models do not collect or expose customer Social Security numbers or personal
+    tax identifiers.
+  reference_dax: ''
+  criticality: critical
+  notes: Uncollected customer PII refusal check
+- id: Q40
+  question: Which unannounced acquisition targets has Contoso's board shortlisted for FY2027 M&A?
+  case_type: abstention
+  category: governance
+  persona: executive
+  intent:
+    measure: unapproved_ma_refusal
+  tags:
+  - abstention
+  - confidential
+  - strategy
+  expected_artifact: ''
+  artifact_aliases: []
+  expected_model: ''
+  decoys: []
+  expected: null
+  gates:
+  - value
+  expected_answer: No FY2027 M&A target pipeline exists in the available semantic models or reports.
+  reference_dax: ''
+  criticality: critical
+  notes: Out-of-model confidential M&A abstention check
+- id: Q41
+  question: Summarize the key operational supply-chain risks highlighted in the Contoso FY25 Ops Risk Brief.
+  case_type: citation_only
+  category: narrative
+  persona: executive
+  intent:
+    measure: executive_risk_narrative_citation
+  tags:
+  - citation-only
+  - narrative
+  - risk
+  expected_artifact: Contoso FY25 Ops Risk Brief
+  artifact_aliases:
+  - Contoso Ops & Supply Chain Model
+  expected_model: Contoso Ops & Supply Chain Model
+  decoys:
+  - Sales Sandbox
+  expected: null
+  gates:
+  - value
+  - artifact
+  expected_answer: The Contoso FY25 Ops Risk Brief highlights Amsterdam and Singapore hub stockout pressure, optical
+    sensor supplier lead times, and customs clearance variability.
+  reference_dax: ''
+  criticality: standard
+  notes: Citation-grounded executive narrative check
+- id: Q42
+  question: Summarize the primary drivers of FY2025 gross margin expansion cited in the Contoso FY25 CFO Commentary
+    report.
+  case_type: citation_only
+  category: narrative
+  persona: finance-analyst
+  intent:
+    measure: margin_bridge_narrative_citation
+  tags:
+  - citation-only
+  - narrative
+  - cfo-commentary
+  expected_artifact: Contoso FY25 CFO Commentary
+  artifact_aliases:
+  - Contoso Finance & Quota Model
+  expected_model: Contoso Finance & Quota Model
+  decoys:
+  - FY2025 revenue - DRAFT
+  expected: null
+  gates:
+  - value
+  - artifact
+  expected_answer: The Contoso FY25 CFO Commentary attributes margin expansion to higher Cloud Platform mix, disciplined
+    enterprise discount governance, and lower freight expedite rates in Q4.
+  reference_dax: ''
+  criticality: standard
+  notes: Citation-grounded finance narrative check

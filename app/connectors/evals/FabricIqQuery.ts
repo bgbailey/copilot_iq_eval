@@ -19,4 +19,8 @@ export class FabricIqQuery extends Source({ schema: 'dbo', table: 'FabricIqQuery
   @text({ optional: true, column: 'Dax', max: 8000 }) dax?: string;
   @int({ optional: true, column: 'DaxChars' }) daxChars?: number;
   @text({ optional: true, column: 'CorrelationId', max: 8000 }) correlationId?: string;
+  @text({ optional: true, column: 'RowId', max: 8000 }) rowId?: string;
+  @text({ optional: true, column: 'OperationId', max: 8000 }) operationId?: string;
+  @text({ optional: true, column: 'ApplicationContext', max: 8000 }) applicationContext?: string;
+  @decimal({ optional: true, column: 'CpuTimeMs' }) cpuTimeMs?: number;
 }

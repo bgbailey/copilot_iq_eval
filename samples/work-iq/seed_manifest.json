@@ -1,0 +1,38 @@
+{
+  "suite": "contoso-work-iq",
+  "version": 2,
+  "golden_file": "data/golden/contoso-work.yaml",
+  "test_user": "eval.tester@contoso.com",
+  "tenant_domain": "contoso.onmicrosoft.example",
+  "artifacts": [
+    {
+      "artifact_name": "FY25 Pricing Committee Notes.docx",
+      "source_markdown": "documents/fy25-pricing-committee-notes.md",
+      "m365_kind": "onedrive_docx",
+      "destination_hint": "OneDrive:/Strategy/FY25 Pricing Committee Notes.docx",
+      "cases": ["W01", "W02", "W03", "W09", "W12", "W15", "W17", "W19"]
+    },
+    {
+      "artifact_name": "Q3 Board Prep Deck.pptx",
+      "source_markdown": "documents/q3-board-prep-summary.md",
+      "m365_kind": "sharepoint_pptx",
+      "destination_hint": "SharePoint:/Sites/ExecutiveBriefings/Shared Documents/Q3 Board Prep Deck.pptx",
+      "cases": ["W04", "W05", "W06", "W10", "W18", "W20"]
+    },
+    {
+      "artifact_name": "EMEA Launch Sync Recap",
+      "source_markdown": "documents/emea-launch-sync-recap.md",
+      "m365_kind": "teams_meeting_recap",
+      "destination_hint": "Teams:/Commercial Launch/EMEA Launch Sync Recap",
+      "cases": ["W07", "W13", "W16", "W22"]
+    },
+    {
+      "artifact_name": "Supply Chain Escalation Thread",
+      "source_markdown": "documents/supply-chain-escalation-thread.md",
+      "m365_kind": "exchange_email_thread",
+      "destination_hint": "Mailbox:/Inbox/Supply Chain Escalation Thread",
+      "cases": ["W08", "W11", "W14"]
+    }
+  ],
+  "abstention_cases": ["W21", "W22"]
+}

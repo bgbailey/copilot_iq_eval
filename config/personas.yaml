@@ -1,0 +1,28 @@
+# Synthetic Contoso personas for row-level and object-level security (RLS/OLS) evaluation.
+# Sign-in names are resolved from environment variables at runtime so real UPNs are never committed.
+version: 1
+personas:
+  executive:
+    sign_in_env: CFEVAL_EXECUTIVE_UPN
+    default_upn: eval.executive@contoso.com
+    token_cache: .cache/msal_executive.bin
+    access_scope: all_regions
+    notes: Full Commercial workspace access across NA, EMEA, and APAC semantic models.
+  finance_analyst:
+    sign_in_env: CFEVAL_FINANCE_UPN
+    default_upn: eval.finance@contoso.com
+    token_cache: .cache/msal_finance.bin
+    access_scope: finance_and_revenue
+    notes: Read and build access on Revenue & Profitability and Finance Actuals models.
+  regional_emea:
+    sign_in_env: CFEVAL_EMEA_UPN
+    default_upn: eval.emea@contoso.com
+    token_cache: .cache/msal_emea.bin
+    access_scope: emea_only
+    notes: Row-level security filters sales and pipeline rows to Region = 'EMEA'.
+  restricted_viewer:
+    sign_in_env: CFEVAL_RESTRICTED_UPN
+    default_upn: eval.restricted@contoso.com
+    token_cache: .cache/msal_restricted.bin
+    access_scope: none
+    notes: No semantic model read permission; prompts must refuse rather than fabricate numbers.

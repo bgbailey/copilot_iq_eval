@@ -1,55 +1,50 @@
-# Golden question set
+# Golden Evaluation Suites (Schema v2)
 
-`golden_questions.csv` preserves the original **Q01–Q08 fictional baseline** and its sample-history contract.
-It uses a Contoso estate with three certified semantic models (**Sales Analytics**, **Finance**, **Service
-Operations**) and one decoy (**Sales Sandbox**). Its numbers are illustrative, not your tenant's reference values.
-Create a separate CSV from `demo_questions.template.csv`; do not rewrite baseline prompts or relabel old runs.
+This directory holds the synthetic Contoso golden suites used by `cfeval` for offline simulation, transcript validation, and demo-tenant calibration. All figures and documents are 100% fictional (`@contoso.com`) and contain no real tenant identifiers.
 
-| Column | Required | Meaning |
+## Bundled Suites
+
+| File | Cases | Surface | Purpose |
+|---|---|---|---|
+| `contoso.yaml` | 42 (`Q01`–`Q42`) | `copilot-chat` / Fabric IQ | Full v2 benchmark covering scalar KPIs, YoY/QoQ growth, margins (`%` and `bps`), rankings, sets, tables, records, directional trends, citations, and policy abstentions across Contoso Sales, Finance & Quota, and Ops & Supply Chain models. `Q01`–`Q08` match the original 8-case baseline verbatim. Synchronized identically with `src/cfeval/sample/contoso.yaml`. |
+| `contoso-smoke.yaml` | 8 (`Q01`–`Q08`) | `copilot-chat` / Fabric IQ | Fast 8-question smoke suite preserving the original `Q01`–`Q08` baseline contract for sub-10-second CI checks and quickstarts. |
+| `contoso-work.yaml` | 22 (`W01`–`W22`) | `work-iq` | Synthetic Microsoft 365 Work IQ grounding suite over Contoso SharePoint strategy notes, OneDrive board presentations, Teams meeting recaps, and Outlook escalation threads (`samples/work-iq/`). |
+| `golden_questions.csv` | 8 (`Q01`–`Q08`) | `copilot-chat` | Legacy v1 CSV fixture retained for backward-compatibility tests. |
+| `demo_questions.template.csv` | 8 (`DEMO01`–`DEMO08`) | `copilot-chat` | Starter template for calibrating a custom CSV against your own semantic models. |
+
+## Schema v2 Overview
+
+Each v2 YAML suite declares `version: 2`, optional suite-level `defaults` (`surface`, `gates`, `rel_tol`), and a `questions` list validated by `schemas/golden.schema.json`:
+
+| Field | Required | Description |
 |---|---|---|
-| `id` | Yes | Stable, unique ID (for example `Q01`). Never reuse an ID for a different question. |
-| `question` | Yes | Exactly what is sent to Copilot Chat. |
-| `category` | No | Free label for slicing results (for example `routing`, `time-intelligence`). |
-| `expected_artifact` | Recommended | Report or semantic model Copilot should cite. Matched case-insensitively against citation names; an item GUID also works. |
-| `artifact_aliases` | No | Other acceptable names, separated by `;`. |
-| `expected_model` | No | Semantic model that Fabric IQ should query (DAX capture). Defaults to `expected_artifact`. |
-| `decoys` | No | Reports, models or documents that must **not** be used, separated by `;`. |
-| `expected_value` | Recommended | The correct number. Percentages are in percentage points (41.6 for 41.6%). |
-| `unit` | No | `currency`, `percent`, `count` or `number` (default). Picks which number in the answer is checked. |
-| `rel_tol`, `abs_tol` | No | Relative and absolute tolerance. Answers rounded for display (for example `$12.8M`) also pass. |
-| `expected_answer` | No | Reference sentence, used by AI-judged checks. |
-| `reference_dax` | No | DAX that returns the expected value as a single cell. `python -m cfeval golden-refresh --write` runs it (as the notebook identity or your Azure CLI account, which needs Build permission on the model) and updates `expected_value`. |
-| `criticality` | No | `critical` or `standard`, for reporting. |
-| `notes` | No | Why the question is in the set. |
+| `id` | Yes | Stable case identifier (`Q01`–`Q42`, `W01`–`W22`). Never reuse an existing ID when changing a prompt's meaning. |
+| `question` | Yes | Exact prompt sent to the target surface. |
+| `case_type` | No | `scalar` (default), `ranked_list`, `set`, `table`, `record`, `direction`, `citation_only`, or `abstention`. |
+| `category` | No | Slicing label (`named-source`, `routing`, `time-intelligence`, `margins`, `quota`, `supply-chain`, `governance`, etc.). |
+| `persona` | No | Role context (`finance-analyst`, `sales-leader`, `ops-manager`, `executive`). |
+| `intent` | No | Structured analytical intent block (`{measure, grouping, date_context, filters}`). |
+| `tags` | No | List of free-form tags for cohort reporting. |
+| `expected` | Conditional | Expected numeric scalar (or `null` when `expect` is structured or `case_type` is `abstention` / `citation_only`). |
+| `expect` | Conditional | Structured expectation payload for `ranked_list` (`{items, top_n, ordered}`), `set` (`{items}`), `table` (`{key, rows}`), `record` (`{fields}`), or `direction` (`{direction: up|down|flat}`). |
+| `unit` | No | `currency`, `percent`, `bps`, `count`, `days`, `hours`, or `number`. |
+| `rel_tol`, `abs_tol` | No | Relative and absolute numeric tolerances. |
+| `expected_artifact` | Recommended | Certified report, semantic model, or workplace document expected in citations. |
+| `artifact_aliases` | No | Additional acceptable artifact titles or file names. |
+| `expected_model` | No | Semantic model expected in engine DAX logs (Fabric IQ surfaces). |
+| `decoys` | No | Stale sandboxes or draft files that fail routing gates if cited or queried. |
+| `reference_dax` | No | Single-table or `EVALUATE ROW(...)` DAX query computing live ground truth from the semantic model. |
+| `gates` | No | Per-case gate override (for example `[value]` on `abstention`, `[value, artifact]` on `citation_only`). |
+| `criticality` | No | `"standard"` (default), `"critical"`, or `"advisory"`; critical failures can block CI regression gates (`max_critical_failures: 0`). |
+| `paraphrases` | No | Alternate phrasings of the same analytical intent for robustness testing. |
 
-Tips:
+## Authoring Guidance
 
-- Mix questions that name the source with questions that don't, so you measure routing as well as accuracy.
-- Add a decoy (a stale copy or a draft document the test user can see) to prove Copilot avoids unofficial sources.
-- Preview reference values with `python tools/setup_demo.py --env .env --refresh-golden`; add `--apply` only after
-  configuring a separate CSV. Review `expected_answer` with the numeric golden; refresh does not rewrite prose.
-- In a Fabric notebook, upload the CSV to the lakehouse Files area and set `GOLDEN_SET=/lakehouse/default/Files/golden_questions.csv`.
-- The package ships a byte-identical baseline copy (`src/cfeval/sample/`) for offline use. Keep it synchronized.
-  The live rehearsal refuses the bundled/public baseline and unresolved/uncalibrated templates.
+- **Mix named-source and unqualified prompts**: named-source cases verify reachability and measure definitions; unqualified cases test cross-workspace discovery and decoy avoidance.
+- **Pair positive lookups with abstentions**: include out-of-model prompts (competitor compensation, uncollected PII, unannounced M&A) so overly eager fabrication fails deterministically.
+- **Keep packaged samples synchronized**: whenever `data/golden/contoso.yaml` changes, copy it byte-for-byte to `src/cfeval/sample/contoso.yaml`.
+- **Calibrate live suites in a separate file**: copy a template rather than editing `Q01`–`Q08` in place so baseline comparisons remain valid. See [`../../docs/how-to/author-golden-sets.md`](../../docs/how-to/author-golden-sets.md) for full authoring instructions.
 
-## Positive path versus diagnostic history
+## Limitations
 
-The template's eight `DEMO*` IDs are placeholders for a **new** demonstration set. Assign new stable IDs after
-finalizing actual prompts; replace every `CALIBRATE` reference, fill single-cell `reference_dax`, and calibrate
-against the retained model. Do not copy a private demo's tenant bindings or numeric calibration into the public sample.
-
-Keep named-source Service Operations **Sev1 count** and **MTTR in hours** controls distinct from the original
-unqualified Q06/Q07. Named-source success demonstrates reachability, not repaired general discovery.
-Keep an unqualified certified-source routing case and the sandbox-decoy check. Do not promise or fabricate
-a particular live negative outcome.
-
-Original Q08 (“latest quarterly revenue”) is deliberately retained as an ambiguity diagnostic: gross/net,
-source and completed-quarter/as-of rules were not explicit. A plausible Finance/net answer is not automatically
-a hallucination. A positive Sales case must name **Sales Analytics, gross revenue, latest completed fiscal quarter
-and a fixed as-of cutoff**. Derive the actual fiscal period and reference value from that model, not an unbounded
-calendar maximum or today's date, and use a new ID.
-
-## Evidence gaps / still thin
-
-These are prompt/reference templates, not measured results or an asserted Service Operations root cause.
-Owner calibration does not verify the actual licensed test user's access, applicable RLS, or Copilot routing.
+Bundled Contoso numbers are deterministic synthetic fixtures verified by `samples/contoso/seed_contoso.py --verify`. Passing offline mock runs validates harness scoring and gate logic, not live tenant permissions, row-level security, or Copilot routing behavior.

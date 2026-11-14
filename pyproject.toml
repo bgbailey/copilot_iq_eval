@@ -4,36 +4,113 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cfeval"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Evaluation harness for Microsoft 365 Copilot Chat with Fabric IQ: routing, values, DAX and latency, with end-to-end telemetry in a Fabric Eventhouse."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "Copilot x Fabric IQ evaluation accelerator contributors" }]
 keywords = ["microsoft-365-copilot", "microsoft-fabric", "fabric-iq", "evaluation", "llm-evaluation", "eventhouse", "foundry"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
-dependencies = ["requests>=2.31"]
+dependencies = [
+  "requests>=2.31",
+  "PyYAML>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bgbailey/copilot_iq_eval"
+Repository = "https://github.com/bgbailey/copilot_iq_eval"
+Changelog = "https://github.com/bgbailey/copilot_iq_eval/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/bgbailey/copilot_iq_eval/tree/main/docs"
 
 [project.optional-dependencies]
 copilot = ["msal>=1.28"]
 kusto = ["azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6"]
-judge = ["openai>=2,<3", "azure-identity>=1.19"]
+fabric = ["azure-identity>=1.19", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6"]
+judge = ["openai>=1.60,<3", "azure-identity>=1.19"]
 sql = ["pyodbc>=5.1,<6"]
-foundry = ["azure-ai-projects>=2.2,<3", "openai>=2,<3", "azure-identity>=1.19"]
+foundry = ["azure-ai-projects>=1.0.0b10,<3", "openai>=1.60,<3", "azure-identity>=1.19"]
+otel = ["opentelemetry-api>=1.25", "opentelemetry-sdk>=1.25"]
 all = [
-  "msal>=1.28", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6", "openai>=2,<3", "azure-identity>=1.19",
-  "azure-ai-projects>=2.2,<3", "pyodbc>=5.1,<6",
+  "msal>=1.28", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6", "openai>=1.60,<3", "azure-identity>=1.19",
+  "azure-ai-projects>=1.0.0b10,<3", "pyodbc>=5.1,<6", "opentelemetry-api>=1.25", "opentelemetry-sdk>=1.25",
+]
+dev = [
+  "msal>=1.28",
+  "openai>=1.60,<3",
+  "azure-identity>=1.19",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "hypothesis>=6.100",
+  "jsonschema>=4.20",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "types-requests>=2.31",
+  "types-PyYAML>=6.0",
+  "build>=1.2",
 ]
 
 [project.scripts]
 cfeval = "cfeval.cli:main"
 
+[project.entry-points."cfeval.targets"]
+copilot-chat = "cfeval.targets.copilot_chat:CopilotChatTarget"
+import = "cfeval.targets.transcript_import:TranscriptImportTarget"
+fabric-iq-mcp-reference = "cfeval.targets.mcp_reference:FabricIqMcpReferenceTarget"
+fabric-data-agent = "cfeval.targets.data_agent:FabricDataAgentTarget"
+
+[tool.setuptools.dynamic]
+version = {attr = "cfeval.__version__"}
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-cfeval = ["kql/*.kql", "sample/*.csv"]
+cfeval = ["kql/*.kql", "resources/*.json", "resources/*.yaml", "resources/*.jsonl", "sample/*.csv", "sample/*.yaml", "py.typed"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "live: calls real Microsoft 365, Fabric, Power BI, or Foundry endpoints (requires CFEVAL_LIVE=1)",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests", "tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["UP031"]
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "src"
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "cfeval.scorers",
+  "cfeval.scoring",
+  "cfeval.golden_v2",
+  "cfeval.stats",
+  "cfeval.interfaces",
+]
+disallow_untyped_defs = true
+warn_return_any = true
+
+[tool.coverage.run]
+source = ["cfeval"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

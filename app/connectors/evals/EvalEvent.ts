@@ -13,4 +13,5 @@ export class EvalEvent extends Source({ schema: 'dbo', table: 'EvalEvent', prima
   @decimal({ optional: true, column: 'DurationMs' }) durationMs?: number;
   @text({ optional: true, column: 'Status', max: 8000 }) status?: string;
   @text({ optional: true, column: 'Details', max: 8000 }) details?: string;
+  @text({ optional: true, column: 'RowId', max: 8000 }) rowId?: string;
 }

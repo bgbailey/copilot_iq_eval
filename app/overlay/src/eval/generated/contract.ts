@@ -35,6 +35,16 @@ export interface EvalRunRow {
   latencyP50Ms: number | null;
   latencyP95Ms: number | null;
   notes: string | null;
+  rowId: string | null;
+  target: string | null;
+  k: number | null;
+  passPowK: number | null;
+  wilsonLow: number | null;
+  wilsonHigh: number | null;
+  judgePromptHash: string | null;
+  judgeCalibrationId: string | null;
+  gatePolicyHash: string | null;
+  schemaVersion: number | null;
 }
 
 /** Snapshot of the golden set used by each run. */
@@ -54,6 +64,14 @@ export interface EvalQuestionRow {
   expectedAnswer: string | null;
   referenceDax: string | null;
   criticality: string | null;
+  rowId: string | null;
+  expectedArtifactId: string | null;
+  caseType: string | null;
+  persona: string | null;
+  tags: string | null;
+  intent: string | null;
+  gates: string | null;
+  paraphrase: string | null;
 }
 
 /** DAX queries Fabric IQ ran for each ask, from workspace monitoring (SemanticModelLogs). */
@@ -71,6 +89,10 @@ export interface FabricIqQueryRow {
   dax: string | null;
   daxChars: number | null;
   correlationId: string | null;
+  rowId: string | null;
+  operationId: string | null;
+  applicationContext: string | null;
+  cpuTimeMs: number | null;
 }
 
 /** One row per ask per scoring backend: verdict, accuracy, routing, DAX and latency in one place. */
@@ -113,6 +135,13 @@ export interface EvalResultRow {
   judgeNotes: string | null;
   error: string | null;
   scoredUtc: Date | null;
+  rowId: string | null;
+  caseType: string | null;
+  persona: string | null;
+  matchKind: string | null;
+  extractionMethod: string | null;
+  routingEvidence: string | null;
+  correlationConfidence: string | null;
 }
 
 /** Stage timings for end-to-end telemetry: ask, follow-up, trace, scoring, publish. */
@@ -124,6 +153,7 @@ export interface EvalEventRow {
   durationMs: number | null;
   status: string | null;
   details: string | null;
+  rowId: string | null;
 }
 
 export const ENTITY_NAMES = ['EvalRun', 'EvalQuestion', 'FabricIqQuery', 'EvalResult', 'EvalEvent'] as const;
@@ -159,6 +189,16 @@ export const COLUMNS: Record<EntityName, ColumnMap> = {
     latencyP50Ms: ['LatencyP50Ms', 'real'],
     latencyP95Ms: ['LatencyP95Ms', 'real'],
     notes: ['Notes', 'string'],
+    rowId: ['RowId', 'string'],
+    target: ['Target', 'string'],
+    k: ['K', 'int'],
+    passPowK: ['PassPowK', 'real'],
+    wilsonLow: ['WilsonLow', 'real'],
+    wilsonHigh: ['WilsonHigh', 'real'],
+    judgePromptHash: ['JudgePromptHash', 'string'],
+    judgeCalibrationId: ['JudgeCalibrationId', 'string'],
+    gatePolicyHash: ['GatePolicyHash', 'string'],
+    schemaVersion: ['SchemaVersion', 'int'],
   },
   EvalQuestion: {
     runId: ['RunId', 'string'],
@@ -176,6 +216,14 @@ export const COLUMNS: Record<EntityName, ColumnMap> = {
     expectedAnswer: ['ExpectedAnswer', 'string'],
     referenceDax: ['ReferenceDax', 'string'],
     criticality: ['Criticality', 'string'],
+    rowId: ['RowId', 'string'],
+    expectedArtifactId: ['ExpectedArtifactId', 'string'],
+    caseType: ['CaseType', 'string'],
+    persona: ['Persona', 'string'],
+    tags: ['Tags', 'string'],
+    intent: ['Intent', 'string'],
+    gates: ['Gates', 'string'],
+    paraphrase: ['Paraphrase', 'string'],
   },
   FabricIqQuery: {
     runId: ['RunId', 'string'],
@@ -191,6 +239,10 @@ export const COLUMNS: Record<EntityName, ColumnMap> = {
     dax: ['Dax', 'string'],
     daxChars: ['DaxChars', 'int'],
     correlationId: ['CorrelationId', 'string'],
+    rowId: ['RowId', 'string'],
+    operationId: ['OperationId', 'string'],
+    applicationContext: ['ApplicationContext', 'string'],
+    cpuTimeMs: ['CpuTimeMs', 'real'],
   },
   EvalResult: {
     runId: ['RunId', 'string'],
@@ -231,6 +283,13 @@ export const COLUMNS: Record<EntityName, ColumnMap> = {
     judgeNotes: ['JudgeNotes', 'string'],
     error: ['Error', 'string'],
     scoredUtc: ['ScoredUtc', 'datetime'],
+    rowId: ['RowId', 'string'],
+    caseType: ['CaseType', 'string'],
+    persona: ['Persona', 'string'],
+    matchKind: ['MatchKind', 'string'],
+    extractionMethod: ['ExtractionMethod', 'string'],
+    routingEvidence: ['RoutingEvidence', 'string'],
+    correlationConfidence: ['CorrelationConfidence', 'string'],
   },
   EvalEvent: {
     runId: ['RunId', 'string'],
@@ -240,13 +299,14 @@ export const COLUMNS: Record<EntityName, ColumnMap> = {
     durationMs: ['DurationMs', 'real'],
     status: ['Status', 'string'],
     details: ['Details', 'dynamic'],
+    rowId: ['RowId', 'string'],
   },
 };
 
 export const FIELDS: Record<EntityName, readonly string[]> = {
-  EvalRun: ['runId', 'runName', 'evalOption', 'surface', 'startedUtc', 'endedUtc', 'status', 'host', 'harnessVersion', 'goldenSetName', 'goldenSetHash', 'questionCount', 'askCount', 'repeats', 'explainMode', 'traceEnabled', 'testUser', 'judgeModel', 'foundryEvalId', 'foundryRunId', 'foundryReportUrl', 'passRate', 'valueAccuracy', 'artifactAccuracy', 'modelAccuracy', 'latencyP50Ms', 'latencyP95Ms', 'notes'],
-  EvalQuestion: ['runId', 'questionId', 'question', 'category', 'expectedArtifact', 'artifactAliases', 'expectedModel', 'decoys', 'expectedValue', 'unit', 'relTol', 'absTol', 'expectedAnswer', 'referenceDax', 'criticality'],
-  FabricIqQuery: ['runId', 'askId', 'queryTimeUtc', 'offsetMs', 'workspaceId', 'itemId', 'itemName', 'applicationName', 'operationName', 'durationMs', 'dax', 'daxChars', 'correlationId'],
-  EvalResult: ['runId', 'askId', 'questionId', 'attempt', 'question', 'category', 'criticality', 'testUser', 'askStartUtc', 'backend', 'verdict', 'valueScore', 'artifactScore', 'modelScore', 'judgeAnswerScore', 'whyScore', 'decoyHit', 'powerBiCited', 'expectedArtifact', 'citedArtifacts', 'expectedModel', 'queriedModels', 'expectedValue', 'extractedValue', 'valueErrorPct', 'latencyMs', 'whyLatencyMs', 'daxQueryCount', 'daxTotalMs', 'daxMaxMs', 'firstDaxOffsetMs', 'traceStatus', 'answerPreview', 'whyPreview', 'reasons', 'judgeNotes', 'error', 'scoredUtc'],
-  EvalEvent: ['runId', 'askId', 'eventTimeUtc', 'stage', 'durationMs', 'status', 'details'],
+  EvalRun: ['runId', 'runName', 'evalOption', 'surface', 'startedUtc', 'endedUtc', 'status', 'host', 'harnessVersion', 'goldenSetName', 'goldenSetHash', 'questionCount', 'askCount', 'repeats', 'explainMode', 'traceEnabled', 'testUser', 'judgeModel', 'foundryEvalId', 'foundryRunId', 'foundryReportUrl', 'passRate', 'valueAccuracy', 'artifactAccuracy', 'modelAccuracy', 'latencyP50Ms', 'latencyP95Ms', 'notes', 'rowId', 'target', 'k', 'passPowK', 'wilsonLow', 'wilsonHigh', 'judgePromptHash', 'judgeCalibrationId', 'gatePolicyHash', 'schemaVersion'],
+  EvalQuestion: ['runId', 'questionId', 'question', 'category', 'expectedArtifact', 'artifactAliases', 'expectedModel', 'decoys', 'expectedValue', 'unit', 'relTol', 'absTol', 'expectedAnswer', 'referenceDax', 'criticality', 'rowId', 'expectedArtifactId', 'caseType', 'persona', 'tags', 'intent', 'gates', 'paraphrase'],
+  FabricIqQuery: ['runId', 'askId', 'queryTimeUtc', 'offsetMs', 'workspaceId', 'itemId', 'itemName', 'applicationName', 'operationName', 'durationMs', 'dax', 'daxChars', 'correlationId', 'rowId', 'operationId', 'applicationContext', 'cpuTimeMs'],
+  EvalResult: ['runId', 'askId', 'questionId', 'attempt', 'question', 'category', 'criticality', 'testUser', 'askStartUtc', 'backend', 'verdict', 'valueScore', 'artifactScore', 'modelScore', 'judgeAnswerScore', 'whyScore', 'decoyHit', 'powerBiCited', 'expectedArtifact', 'citedArtifacts', 'expectedModel', 'queriedModels', 'expectedValue', 'extractedValue', 'valueErrorPct', 'latencyMs', 'whyLatencyMs', 'daxQueryCount', 'daxTotalMs', 'daxMaxMs', 'firstDaxOffsetMs', 'traceStatus', 'answerPreview', 'whyPreview', 'reasons', 'judgeNotes', 'error', 'scoredUtc', 'rowId', 'caseType', 'persona', 'matchKind', 'extractionMethod', 'routingEvidence', 'correlationConfidence'],
+  EvalEvent: ['runId', 'askId', 'eventTimeUtc', 'stage', 'durationMs', 'status', 'details', 'rowId'],
 };

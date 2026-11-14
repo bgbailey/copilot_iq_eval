@@ -3,6 +3,7 @@
 Authentication uses an explicit, identity-checked token provider for the
 standard Kusto audience in both notebooks and local Azure CLI runs.
 """
+
 import io
 import json
 from datetime import timedelta
@@ -25,7 +26,8 @@ def connection_builder(uri, settings=None):
     from azure.kusto.data import KustoConnectionStringBuilder
 
     return KustoConnectionStringBuilder.with_token_provider(
-        uri, lambda: runtime.token_for(KUSTO_AUDIENCE, settings=settings))
+        uri, lambda: runtime.token_for(KUSTO_AUDIENCE, settings=settings)
+    )
 
 
 def _rows(table):
@@ -75,7 +77,8 @@ class KustoIngestClient:
         if not rows:
             return 0
         payload = "\n".join(json.dumps(r, default=str, ensure_ascii=False) for r in rows).encode("utf-8")
-        props = IngestionProperties(database=database, table=table, data_format=DataFormat.JSON,
-                                    ingestion_mapping_reference=mapping)
+        props = IngestionProperties(
+            database=database, table=table, data_format=DataFormat.JSON, ingestion_mapping_reference=mapping
+        )
         self._client.ingest_from_stream(io.BytesIO(payload), ingestion_properties=props)
         return len(rows)

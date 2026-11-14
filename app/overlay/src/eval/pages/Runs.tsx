@@ -1,6 +1,6 @@
 import { Card, Kpi } from '../charts';
 import { backendLabel, dateTime, duration, pct } from '../format';
-import { backendAgreement, kpis, type RunPoint } from '../metrics';
+import { backendAgreement, isLiveSurface, kpis, type RunPoint } from '../metrics';
 import type { EvalResultRow, EvalRunRow } from '../generated/contract';
 
 export function Runs({ runs, points, results }: { runs: EvalRunRow[]; points: RunPoint[]; results: EvalResultRow[] }) {
@@ -11,7 +11,7 @@ export function Runs({ runs, points, results }: { runs: EvalRunRow[]; points: Ru
     <div className="ev-page">
       <div className="ev-kpis">
         <Kpi label="Runs" value={String(runs.length)} />
-        <Kpi label="Live runs" value={String(runs.filter((r) => r.surface === 'copilot-chat-api').length)} hint="Copilot Chat API" />
+        <Kpi label="Live runs" value={String(runs.filter((r) => isLiveSurface(r.surface)).length)} hint="Non-simulated targets" />
         <Kpi label="Option 1 vs Option 2 agreement" value={pct(agreement.rate)} hint={`${agreement.asks} asks scored by both`} />
       </div>
       <Card title="Evaluation runs">
@@ -30,7 +30,7 @@ export function Runs({ runs, points, results }: { runs: EvalRunRow[]; points: Ru
                   <td>{dateTime(r.startedUtc)}</td>
                   <td title={r.runId ?? ''}>{r.runName}</td>
                   <td>{pts.length ? pts.map((p) => <div key={p.backend}>{backendLabel(p.backend)}: {p.complete ? pct(p.passRate) : `incomplete (${p.asks}/${p.expectedAsks ?? '?'} asks)`}</div>) : `${r.evalOption || 'Unknown backend'} · incomplete`}</td>
-                  <td>{r.surface === 'simulated' ? <span className="ev-tag">simulated</span> : r.surface === 'copilot-chat-api' ? 'live' : 'unknown'}</td>
+                  <td>{r.surface === 'simulated' ? <span className="ev-tag">simulated</span> : isLiveSurface(r.surface) ? 'live' : 'unknown'}</td>
                   <td className="ev-num">{k.asks} / {r.askCount ?? '?'}</td>
                   <td className="ev-num">{pct(k.passRate)}<div className="ev-muted">{k.scores} scores</div></td>
                   <td className="ev-num">{pct(k.valueAccuracy)}</td>

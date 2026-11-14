@@ -1,0 +1,45 @@
+# Gate policies defining which checks determine PASS / FAIL / INCONCLUSIVE.
+# Diagnostic checks (judge_answer, why) are recorded as telemetry and only gate
+# verdicts when listed under `gates` or when JUDGE_GATES_VERDICT=true.
+version: 1
+default_profile: auto
+
+profiles:
+  with_engine_evidence:
+    description: "Requires value match, citation routing, and observed semantic-model DAX routing."
+    routing_evidence: "engine+citations"
+    gates:
+      - value
+      - artifact
+      - model
+    incomplete_on_missing_trace: true
+
+  without_engine_evidence:
+    description: "Requires value match and citation routing when engine DAX telemetry is disabled or unavailable."
+    routing_evidence: "citations-only"
+    gates:
+      - value
+      - artifact
+    incomplete_on_missing_trace: false
+
+  tool_call_evidence:
+    description: "Requires value match and verified MCP/agent tool-call routing."
+    routing_evidence: "tool_call"
+    gates:
+      - value
+      - model
+    incomplete_on_missing_trace: false
+
+  work_iq:
+    description: "Workplace M365 grounding (emails, files, meetings) where semantic-model DAX does not apply."
+    routing_evidence: "citations-only"
+    gates:
+      - value
+      - artifact
+    incomplete_on_missing_trace: false
+
+thresholds:
+  min_pass_rate: 0.85
+  max_critical_failures: 0
+  max_inconclusive_rate: 0.10
+  max_error_count: 0

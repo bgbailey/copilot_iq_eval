@@ -8,6 +8,7 @@ attributions (citations and annotations with links). It doesn't return a
 reasoning trace, so the harness can ask a follow-up "which sources did you use
 and why" turn in the same conversation (self-reported, not proof).
 """
+
 import json
 import re
 import time
@@ -16,6 +17,7 @@ from dataclasses import dataclass, field
 import requests
 
 from .clock import SystemClock
+from .config import HttpStatusError, request_with_retry
 
 GRAPH_BETA = "https://graph.microsoft.com/beta"
 RETRY_STATUS = (429, 500, 502, 503, 504)
@@ -50,10 +52,10 @@ class ChatTurn:
 class AskResult:
     question: str
     conversation_id: str = ""
-    answer: ChatTurn = None
-    explain: ChatTurn = None
+    answer: ChatTurn | None = None
+    explain: ChatTurn | None = None
     why_text: str = ""
-    why_json: dict = None
+    why_json: dict | None = None
     error: str = ""
     http_status: int = 200
     started: object = None
@@ -92,8 +94,17 @@ def reply_message(conversation, sent_text=""):
 
 
 class CopilotChatClient:
-    def __init__(self, token_provider, time_zone="America/New_York", timeout_s=180, max_retries=4,
-                 base_url=GRAPH_BETA, session=None, clock=None):
+    def __init__(
+        self,
+        token_provider,
+        time_zone="America/New_York",
+        timeout_s=180,
+        max_retries=4,
+        base_url=GRAPH_BETA,
+        session=None,
+        clock=None,
+        sleep_fn=time.sleep,
+    ):
         self._token = token_provider
         self.time_zone = time_zone
         self.timeout_s = timeout_s
@@ -101,27 +112,40 @@ class CopilotChatClient:
         self.base_url = base_url.rstrip("/")
         self.session = session or requests.Session()
         self.clock = clock or SystemClock()
+        self.sleep_fn = sleep_fn
 
     def _post(self, path, body):
-        delay = 2.0
-        for attempt in range(self.max_retries + 1):
-            r = self.session.post(self.base_url + path, json=body, timeout=self.timeout_s, headers={
-                "Authorization": "Bearer " + self._token(), "Content-Type": "application/json"})
-            if r.status_code < 300:
-                return r.json()
-            if r.status_code in RETRY_STATUS and attempt < self.max_retries:
-                wait = float(r.headers.get("Retry-After") or delay)
-                time.sleep(min(wait, 60))
-                delay = min(delay * 2, 30)
-                continue
-            raise ChatApiError(r.status_code, r.text)
-        raise ChatApiError(0, "retries exhausted")
+        timeout = (
+            (min(10.0, float(self.timeout_s)), float(self.timeout_s))
+            if isinstance(self.timeout_s, (int, float))
+            else self.timeout_s
+        )
+        try:
+            r = request_with_retry(
+                self.session,
+                "POST",
+                self.base_url + path,
+                json=body,
+                timeout=timeout,
+                max_retries=self.max_retries,
+                backoff_base=2.0,
+                sleep_fn=self.sleep_fn,
+                retry_statuses=RETRY_STATUS,
+                headers=lambda: {
+                    "Authorization": "Bearer " + self._token(),
+                    "Content-Type": "application/json",
+                },
+            )
+            return r.json()
+        except HttpStatusError as exc:
+            raise ChatApiError(exc.status_code, exc.body) from exc
 
     def create_conversation(self):
         return self._post("/copilot/conversations", {})["id"]
 
     def chat(self, conversation_id, text, additional_context=None, web_enabled=False):
-        body = {
+        # TODO(verify-live): confirm Graph /beta Copilot Chat attribution fields for Fabric IQ items
+        body: dict[str, object] = {
             "message": {"text": text},
             "locationHint": {"timeZone": self.time_zone},
             "contextualResources": {"webContext": {"isWebEnabled": bool(web_enabled)}},
@@ -133,8 +157,14 @@ class CopilotChatClient:
         conversation = self._post("/copilot/conversations/%s/chat" % conversation_id, body)
         latency = (time.monotonic() - t0) * 1000.0
         msg = reply_message(conversation, text)
-        return ChatTurn(msg.get("text") or "", msg.get("attributions") or [], started, self.clock.now(),
-                        round(latency, 1), conversation)
+        return ChatTurn(
+            msg.get("text") or "",
+            msg.get("attributions") or [],
+            started,
+            self.clock.now(),
+            round(latency, 1),
+            conversation,
+        )
 
     def ask(self, question, explain_mode="followup"):
         """New conversation, ask the question, optionally ask the follow-up 'why' turn."""

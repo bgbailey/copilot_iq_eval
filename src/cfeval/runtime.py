@@ -1,4 +1,5 @@
 """Explicitly bound SDK/CLI token acquisition; never starts interactive sign-in."""
+
 import base64
 import json
 import math
@@ -42,14 +43,23 @@ def require_operator_settings(settings, cli=False):
 
 
 def resource_uri(resource):
-    resource = {"pbi": "https://analysis.windows.net/powerbi/api",
-                "keyvault": "https://vault.azure.net", "storage": "https://storage.azure.com",
-                "kusto": "https://kusto.kusto.windows.net"}.get(resource, resource)
+    resource = {
+        "pbi": "https://analysis.windows.net/powerbi/api",
+        "keyvault": "https://vault.azure.net",
+        "storage": "https://storage.azure.com",
+        "kusto": "https://kusto.kusto.windows.net",
+    }.get(resource, resource)
     if isinstance(resource, str) and resource.endswith("/.default"):
-        resource = resource[:-len("/.default")]
+        resource = resource[: -len("/.default")]
     parsed = urlsplit(resource)
-    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
-            or parsed.query or parsed.fragment):
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ValueError("An explicit HTTPS resource audience is required")
     return resource.rstrip("/")
 
@@ -61,8 +71,9 @@ def resource_for_scopes(scopes):
     return resources.pop()
 
 
-def inspect_acquired_token(token, resource, tenant_id, expected_upn="", expected_object_id="",
-                           required_scopes=(), client_id="", delegated=True):
+def inspect_acquired_token(
+    token, resource, tenant_id, expected_upn="", expected_object_id="", required_scopes=(), client_id="", delegated=True
+):
     """Inspect a trusted MSAL/SDK/CLI result, NOT an arbitrary bearer token.
 
     Decoding does not verify a JWT signature. The acquisition library/authority
@@ -85,8 +96,7 @@ def inspect_acquired_token(token, resource, tenant_id, expected_upn="", expected
     if str(claims.get("tid", "")).lower() != tenant:
         reject("has the wrong tenant")
     issuer = str(claims.get("iss", "")).lower().rstrip("/")
-    if issuer not in ("https://sts.windows.net/" + tenant,
-                      "https://login.microsoftonline.com/" + tenant + "/v2.0"):
+    if issuer not in ("https://sts.windows.net/" + tenant, "https://login.microsoftonline.com/" + tenant + "/v2.0"):
         reject("has an unexpected issuer")
     audience = resource_uri(resource).lower()
     aliases = {
@@ -97,11 +107,19 @@ def inspect_acquired_token(token, resource, tenant_id, expected_upn="", expected
     if str(claims.get("aud", "")).lower().rstrip("/") not in {audience} | aliases.get(audience, set()):
         reject("has the wrong audience")
     expiry, not_before = claims.get("exp"), claims.get("nbf", 0)
-    if (not isinstance(expiry, (int, float)) or isinstance(expiry, bool)
-            or not math.isfinite(expiry) or expiry <= time.time() + 30):
+    if (
+        not isinstance(expiry, (int, float))
+        or isinstance(expiry, bool)
+        or not math.isfinite(expiry)
+        or expiry <= time.time() + 30
+    ):
         reject("is expired or too close to expiry")
-    if (not isinstance(not_before, (int, float)) or isinstance(not_before, bool)
-            or not math.isfinite(not_before) or not_before > time.time() + 60):
+    if (
+        not isinstance(not_before, (int, float))
+        or isinstance(not_before, bool)
+        or not math.isfinite(not_before)
+        or not_before > time.time() + 60
+    ):
         reject("is not yet valid")
     if client_id and str(claims.get("azp") or claims.get("appid", "")).lower() != client_id.lower():
         reject("belongs to the wrong application")
@@ -113,10 +131,13 @@ def inspect_acquired_token(token, resource, tenant_id, expected_upn="", expected
         if expected_object_id and str(claims.get("oid", "")).lower() != expected_object_id.lower():
             reject("has the wrong user object ID")
         scopes = claims.get("scp", "")
-        required = {scope.rsplit("/", 1)[-1] for scope in required_scopes
-                    if not scope.endswith("/.default")}
-        if (claims.get("idtyp") == "app" or not isinstance(scopes, str) or not scopes.strip()
-                or not required <= set(scopes.split())):
+        required = {scope.rsplit("/", 1)[-1] for scope in required_scopes if not scope.endswith("/.default")}
+        if (
+            claims.get("idtyp") == "app"
+            or not isinstance(scopes, str)
+            or not scopes.strip()
+            or not required <= set(scopes.split())
+        ):
             reject("lacks the required delegated scopes")
     elif not client_id:
         raise ValueError("Application token inspection requires an explicit client ID")
@@ -127,6 +148,7 @@ def in_fabric_notebook():
     """True when running inside a Microsoft Fabric notebook."""
     try:
         import notebookutils  # noqa: F401  (available only in Fabric)
+
         return True
     except ImportError:
         return False
@@ -138,45 +160,66 @@ def fabric_token(audience, settings=None):
     resource = resource_uri(audience)
     import notebookutils  # type: ignore
 
-    keys = {"https://analysis.windows.net/powerbi/api": "pbi", "https://api.fabric.microsoft.com": "pbi",
-            "https://vault.azure.net": "keyvault", "https://storage.azure.com": "storage",
-            "https://kusto.kusto.windows.net": "kusto"}
+    keys = {
+        "https://analysis.windows.net/powerbi/api": "pbi",
+        "https://api.fabric.microsoft.com": "pbi",
+        "https://vault.azure.net": "keyvault",
+        "https://storage.azure.com": "storage",
+        "https://kusto.kusto.windows.net": "kusto",
+    }
     if resource not in keys:
         raise ValueError("This resource needs an explicit credential; NotebookUtils has no supported audience key")
     token = notebookutils.credentials.getToken(keys[resource])
     expected_audience = "https://analysis.windows.net/powerbi/api" if keys[resource] == "pbi" else resource
-    inspect_acquired_token(token, expected_audience, settings.tenant_id, settings.operator_upn,
-                           settings.operator_object_id)
+    inspect_acquired_token(
+        token, expected_audience, settings.tenant_id, settings.operator_upn, settings.operator_object_id
+    )
     return token
 
 
 def fabric_secret(vault_url, name, settings=None):
     fabric_token("keyvault", settings=settings)
     import notebookutils  # type: ignore
+
     return notebookutils.credentials.getSecret(vault_url, name)
 
 
 def _az_json(arguments, settings):
-    env = dict(os.environ, AZURE_CONFIG_DIR=str(Path(settings.azure_config_dir).expanduser().resolve()),
-               AZURE_CORE_COLLECT_TELEMETRY="no", AZURE_EXTENSION_USE_DYNAMIC_INSTALL="no")
+    env = dict(
+        os.environ,
+        AZURE_CONFIG_DIR=str(Path(settings.azure_config_dir).expanduser().resolve()),
+        AZURE_CORE_COLLECT_TELEMETRY="no",
+        AZURE_EXTENSION_USE_DYNAMIC_INSTALL="no",
+    )
     try:
-        out = subprocess.run([shutil.which("az") or "az", *arguments, "--output", "json", "--only-show-errors"],
-                             env=env, stdin=subprocess.DEVNULL, check=True, capture_output=True, text=True,
-                             timeout=60).stdout
+        out = subprocess.run(
+            [shutil.which("az") or "az", *arguments, "--output", "json", "--only-show-errors"],
+            env=env,
+            stdin=subprocess.DEVNULL,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        ).stdout
         data = json.loads(out)
         if not isinstance(data, dict):
             raise ValueError()
         return data
     except subprocess.CalledProcessError as exc:
         codes = sorted(set(re.findall(r"\bAADSTS[0-9]+\b", exc.stderr or "")))
-        raise LoginRequired("Azure CLI request failed (exit %s%s); no automatic sign-in or account switch was "
-                            "attempted" % (exc.returncode, ", " + ", ".join(codes) if codes else "")) from None
+        raise LoginRequired(
+            "Azure CLI request failed (exit %s%s); no automatic sign-in or account switch was "
+            "attempted" % (exc.returncode, ", " + ", ".join(codes) if codes else "")
+        ) from None
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError("Azure CLI could not run (%s); check the CLI installation and profile" %
-                           type(exc).__name__) from None
+        raise RuntimeError(
+            "Azure CLI could not run (%s); check the CLI installation and profile" % type(exc).__name__
+        ) from None
     except ValueError:
-        raise LoginRequired("The dedicated Azure CLI profile is unavailable or needs an explicit labelled login; "
-                            "no automatic sign-in or account switch was attempted") from None
+        raise LoginRequired(
+            "The dedicated Azure CLI profile is unavailable or needs an explicit labelled login; "
+            "no automatic sign-in or account switch was attempted"
+        ) from None
 
 
 def azure_cli_token(resource, settings=None):
@@ -185,14 +228,20 @@ def azure_cli_token(resource, settings=None):
     resource = resource_uri(resource)
     account = _az_json(["account", "show", "--subscription", settings.azure_subscription_id], settings)
     user = account.get("user") or {}
-    if (str(account.get("tenantId", "")).lower() != settings.tenant_id.lower()
-            or str(account.get("id", "")).lower() != settings.azure_subscription_id.lower()
-            or user.get("type", "").lower() != "user"
-            or user.get("name", "").casefold() != settings.operator_upn.casefold()):
-        raise LoginRequired("Azure CLI profile does not match TENANT_ID, AZURE_SUBSCRIPTION_ID and OPERATOR_UPN; "
-                            "use a separately labelled login, not an ambient account switch")
-    result = _az_json(["account", "get-access-token", "--resource", resource,
-                       "--subscription", settings.azure_subscription_id], settings)
+    if (
+        str(account.get("tenantId", "")).lower() != settings.tenant_id.lower()
+        or str(account.get("id", "")).lower() != settings.azure_subscription_id.lower()
+        or user.get("type", "").lower() != "user"
+        or user.get("name", "").casefold() != settings.operator_upn.casefold()
+    ):
+        raise LoginRequired(
+            "Azure CLI profile does not match TENANT_ID, AZURE_SUBSCRIPTION_ID and OPERATOR_UPN; "
+            "use a separately labelled login, not an ambient account switch"
+        )
+    result = _az_json(
+        ["account", "get-access-token", "--resource", resource, "--subscription", settings.azure_subscription_id],
+        settings,
+    )
     token = result.get("accessToken", "")
     inspect_acquired_token(token, resource, settings.tenant_id, settings.operator_upn, settings.operator_object_id)
     return token

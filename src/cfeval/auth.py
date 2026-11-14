@@ -5,9 +5,16 @@ harness signs in as a dedicated, Copilot-licensed test user. The MSAL token
 cache can live in a local file or in Azure Key Vault (for scheduled Fabric
 notebook runs). Refresh tokens keep unattended runs signed in.
 """
+
+from __future__ import annotations
+
+import base64
 import html
+import json
 import os
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import requests
@@ -16,10 +23,108 @@ from . import runtime
 
 GRAPH_COPILOT_CHAT_SCOPES = [
     "https://graph.microsoft.com/" + s
-    for s in ("Sites.Read.All", "Mail.Read", "People.Read.All", "OnlineMeetingTranscript.Read.All",
-              "Chat.Read", "ChannelMessage.Read.All", "ExternalItem.Read.All")
+    for s in (
+        "Sites.Read.All",
+        "Mail.Read",
+        "People.Read.All",
+        "OnlineMeetingTranscript.Read.All",
+        "Chat.Read",
+        "ChannelMessage.Read.All",
+        "ExternalItem.Read.All",
+    )
 ]
 POWERBI_DATASET_SCOPES = ["https://analysis.windows.net/powerbi/api/Dataset.Read.All"]
+
+
+def decode_jwt_claims_unverified(token: str) -> dict[str, Any]:
+    """Decode the JSON payload of a JWT without external dependencies or signature verification."""
+    if not isinstance(token, str):
+        raise ValueError("JWT token must be a string")
+    raw = token.strip()
+    if raw.lower().startswith("bearer "):
+        raw = raw[7:].strip()
+    parts = raw.split(".")
+    if len(parts) != 3 or not parts[1]:
+        raise ValueError("Invalid JWT token format: expected 3 dot-separated segments")
+    payload_b64 = parts[1]
+    padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+    try:
+        decoded_bytes = base64.urlsafe_b64decode(padded.encode("ascii"))
+        claims = json.loads(decoded_bytes.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError(f"Invalid JWT payload encoding: {exc}") from exc
+    if not isinstance(claims, dict):
+        raise ValueError("Invalid JWT payload: expected JSON object")
+    return claims
+
+
+def verify_token_claims(
+    token: str,
+    *,
+    expected_tid: str = "",
+    expected_upn: str = "",
+    required_scp: Sequence[str] = (),
+    allow_app_only: bool = True,
+) -> dict[str, Any]:
+    """Verify Entra JWT claims (tid, upn, scp, delegated vs app-only) offline."""
+    try:
+        claims = decode_jwt_claims_unverified(token)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "tid": "",
+            "upn": "",
+            "scp": [],
+            "app_only": False,
+            "issues": [str(exc)],
+        }
+
+    tid = str(claims.get("tid") or "")
+    upn = str(claims.get("upn") or claims.get("preferred_username") or claims.get("unique_name") or "")
+    raw_scp = claims.get("scp")
+    if isinstance(raw_scp, str):
+        scp = [s for s in raw_scp.split() if s]
+    elif isinstance(raw_scp, (list, tuple)):
+        scp = [str(s) for s in raw_scp if s]
+    else:
+        scp = []
+
+    roles = claims.get("roles") or []
+    idtyp = str(claims.get("idtyp") or "").strip().lower()
+    app_only = bool(idtyp == "app" or (bool(roles) and not scp and not upn))
+
+    issues: list[str] = []
+    if app_only and not allow_app_only:
+        issues.append("app-only token is not permitted (delegated user token required)")
+
+    if expected_tid and tid.lower() != expected_tid.strip().lower():
+        issues.append(f"tenant mismatch: expected {expected_tid}, got {tid or '<missing>'}")
+
+    if expected_upn and upn.casefold() != expected_upn.strip().casefold():
+        issues.append(f"user mismatch: expected {expected_upn}, got {upn or '<missing>'}")
+
+    if required_scp:
+        present_exact = {s.casefold() for s in scp}
+        present_short = {s.rsplit("/", 1)[-1].casefold() for s in scp}
+        missing: list[str] = []
+        for req in required_scp:
+            req_clean = str(req).strip()
+            if not req_clean:
+                continue
+            req_short = req_clean.rsplit("/", 1)[-1].casefold()
+            if req_clean.casefold() not in present_exact and req_short not in present_short:
+                missing.append(req_clean)
+        if missing:
+            issues.append(f"missing required scopes: {', '.join(missing)}")
+
+    return {
+        "ok": len(issues) == 0,
+        "tid": tid,
+        "upn": upn,
+        "scp": scp,
+        "app_only": app_only,
+        "issues": issues,
+    }
 
 
 def _protect_private_file(path):
@@ -97,8 +202,9 @@ class KeyVaultCacheStore:
         return "%s/secrets/%s?api-version=%s" % (self.vault_url, self.secret_name, self.API)
 
     def load(self):
-        r = requests.get(self._url(), headers={"Authorization": "Bearer " + self._token()},
-                         timeout=30, allow_redirects=False)
+        r = requests.get(
+            self._url(), headers={"Authorization": "Bearer " + self._token()}, timeout=30, allow_redirects=False
+        )
         if 300 <= r.status_code < 400:
             raise requests.HTTPError("Key Vault token cache redirects are not allowed", response=r)
         if r.status_code == 404:
@@ -107,8 +213,13 @@ class KeyVaultCacheStore:
         return r.json().get("value")
 
     def save(self, data):
-        r = requests.put(self._url(), headers={"Authorization": "Bearer " + self._token()},
-                         json={"value": data, "contentType": "application/json"}, timeout=30, allow_redirects=False)
+        r = requests.put(
+            self._url(),
+            headers={"Authorization": "Bearer " + self._token()},
+            json={"value": data, "contentType": "application/json"},
+            timeout=30,
+            allow_redirects=False,
+        )
         if 300 <= r.status_code < 400:
             raise requests.HTTPError("Key Vault token cache redirects are not allowed", response=r)
         r.raise_for_status()
@@ -130,25 +241,35 @@ def _login_context_renderer(settings):
     tenant = "%s / %s" % (settings.tenant_label, settings.tenant_id) if settings.tenant_label else settings.tenant_id
 
     def render(verification_uri, user_code, resource):
-        if verification_uri.rstrip("/") not in ("https://login.microsoft.com/device",
-                                                 "https://microsoft.com/devicelogin",
-                                                 "https://www.microsoft.com/devicelogin"):
+        if verification_uri.rstrip("/") not in (
+            "https://login.microsoft.com/device",
+            "https://microsoft.com/devicelogin",
+            "https://www.microsoft.com/devicelogin",
+        ):
             raise runtime.LoginRequired("Unrecognized verification URL; no sign-in context was displayed")
-        service = {"https://graph.microsoft.com": "Microsoft 365 Copilot Chat / Microsoft Graph",
-                   "https://analysis.windows.net/powerbi/api": "Power BI"}.get(resource, resource)
-        label = "Scout | %s | %s | %s | %s" % (run, service, tenant, settings.test_user_upn)
-        details = (("Task/run", run), ("Service", service), ("Expected tenant", tenant),
-                   ("Expected user", settings.test_user_upn), ("Environment", runtime.host_name()),
-                   ("Azure subscription", settings.azure_subscription_id or "not used for this sign-in"))
+        service = {
+            "https://graph.microsoft.com": "Microsoft 365 Copilot Chat / Microsoft Graph",
+            "https://analysis.windows.net/powerbi/api": "Power BI",
+        }.get(resource, resource)
+        label = "cfeval | %s | %s | %s | %s" % (run, service, tenant, settings.test_user_upn)
+        details = (
+            ("Task/run", run),
+            ("Service", service),
+            ("Expected tenant", tenant),
+            ("Expected user", settings.test_user_upn),
+            ("Environment", runtime.host_name()),
+            ("Azure subscription", settings.azure_subscription_id or "not used for this sign-in"),
+        )
         rows = "".join("<dt>%s</dt><dd>%s</dd>" % (html.escape(k), html.escape(v)) for k, v in details)
-        body = ('<section role="region" aria-label="%s"><h1>%s</h1><dl>%s</dl>'
-                '<p>Keep this context visible throughout sign-in and consent. '
-                'Use a new tab in this SAME window. If the browser opens another window, move the sign-in tab '
-                'here before continuing. Check the expected account and tenant; do not switch another session.</p>'
-                '<p>Device sign-in code: <code>%s</code></p>'
-                '<a href="%s" target="_blank" rel="noopener noreferrer">Open Microsoft device sign-in '
-                'in a new tab in this window</a></section>') % (
-                    html.escape(label), html.escape(label), rows, html.escape(user_code), html.escape(verification_uri))
+        body = (
+            '<section role="region" aria-label="%s"><h1>%s</h1><dl>%s</dl>'
+            "<p>Keep this context visible throughout sign-in and consent. "
+            "Use a new tab in this SAME window. If the browser opens another window, move the sign-in tab "
+            "here before continuing. Check the expected account and tenant; do not switch another session.</p>"
+            "<p>Device sign-in code: <code>%s</code></p>"
+            '<a href="%s" target="_blank" rel="noopener noreferrer">Open Microsoft device sign-in '
+            "in a new tab in this window</a></section>"
+        ) % (html.escape(label), html.escape(label), rows, html.escape(user_code), html.escape(verification_uri))
         return label, body
 
     return render
@@ -167,11 +288,14 @@ def browser_login_callback(settings, directory=None, opener=None, prompt=print):
     def callback(verification_uri, user_code, resource):
         label, body = render(verification_uri, user_code, resource)
         page = '<!doctype html><html lang="en"><meta charset="utf-8"><title>%s</title>%s</html>' % (
-            html.escape(label), body)
+            html.escape(label),
+            body,
+        )
         path = (directory / (uuid4().hex + ".html")).resolve()
         _atomic_private_write(path, page)
         if opener is None:
             import webbrowser
+
             open_page = webbrowser.open
         else:
             open_page = opener
@@ -196,11 +320,15 @@ def notebook_login_callback(settings, prompt=print):
         try:
             from IPython.display import HTML, display
         except ImportError:
-            raise runtime.LoginRequired("Notebook sign-in requires IPython.display and persistent HTML output; "
-                                        "open this explicit login from a notebook UI") from None
+            raise runtime.LoginRequired(
+                "Notebook sign-in requires IPython.display and persistent HTML output; "
+                "open this explicit login from a notebook UI"
+            ) from None
         display(HTML(body))
-        prompt("Authentication context displayed in notebook output. Keep this notebook visible in the "
-               "same browser window as sign-in.")
+        prompt(
+            "Authentication context displayed in notebook output. Keep this notebook visible in the "
+            "same browser window as sign-in."
+        )
         return True
 
     return callback
@@ -212,8 +340,16 @@ class DelegatedAuth:
     A dedicated, low-traffic test user is recommended, not required.
     """
 
-    def __init__(self, tenant_id, client_id, cache_store, expected_upn="", prompt=print,
-                 expected_object_id="", login_callback=None):
+    def __init__(
+        self,
+        tenant_id,
+        client_id,
+        cache_store,
+        expected_upn="",
+        prompt=print,
+        expected_object_id="",
+        login_callback=None,
+    ):
         runtime.require_identity(tenant_id, expected_upn, expected_object_id)
         runtime._uuid(client_id, "CLIENT_ID")
         import msal  # imported lazily so offline mode needs no extra packages
@@ -224,7 +360,8 @@ class DelegatedAuth:
         if existing:
             self._cache.deserialize(existing)
         self._app = msal.PublicClientApplication(
-            client_id, authority="https://login.microsoftonline.com/%s" % tenant_id, token_cache=self._cache)
+            client_id, authority="https://login.microsoftonline.com/%s" % tenant_id, token_cache=self._cache
+        )
         self.tenant_id = tenant_id
         self.client_id = client_id
         self.expected_upn = expected_upn
@@ -236,15 +373,26 @@ class DelegatedAuth:
     @classmethod
     def from_settings(cls, settings, prompt=print, login_callback=None):
         runtime.require_identity(settings.tenant_id, settings.test_user_upn, settings.test_user_object_id)
-        return cls(settings.tenant_id, settings.client_id, cache_store_from_settings(settings),
-                   settings.test_user_upn, prompt, settings.test_user_object_id, login_callback)
+        return cls(
+            settings.tenant_id,
+            settings.client_id,
+            cache_store_from_settings(settings),
+            settings.test_user_upn,
+            prompt,
+            settings.test_user_object_id,
+            login_callback,
+        )
 
     def _account(self):
-        accounts = [a for a in self._app.get_accounts(username=self.expected_upn)
-                    if a.get("username", "").casefold() == self.expected_upn.casefold()
-                    and a.get("realm", "").lower() == self.tenant_id.lower()
-                    and (not self.expected_object_id
-                         or a.get("local_account_id", "").lower() == self.expected_object_id.lower())]
+        accounts = [
+            a
+            for a in self._app.get_accounts(username=self.expected_upn)
+            if a.get("username", "").casefold() == self.expected_upn.casefold()
+            and a.get("realm", "").lower() == self.tenant_id.lower()
+            and (
+                not self.expected_object_id or a.get("local_account_id", "").lower() == self.expected_object_id.lower()
+            )
+        ]
         if len(accounts) > 1:
             raise runtime.LoginRequired("Multiple matching cached accounts; use a dedicated test-user cache")
         return accounts[0] if accounts else None
@@ -259,8 +407,10 @@ class DelegatedAuth:
             result = self._app.acquire_token_silent(scopes, account=account) if account else None
             if not result or "access_token" not in result:
                 if not interactive or self._login_callback is None:
-                    raise runtime.LoginRequired("No usable token for the configured test user. Run explicit login "
-                                                "with a labelled browser context; unattended runs never prompt.")
+                    raise runtime.LoginRequired(
+                        "No usable token for the configured test user. Run explicit login "
+                        "with a labelled browser context; unattended runs never prompt."
+                    )
                 flow = self._app.initiate_device_flow(scopes=scopes)
                 if not flow.get("user_code") or not flow.get("verification_uri"):
                     raise runtime.LoginRequired("Device sign-in could not start; no anonymous prompt was displayed")
@@ -270,8 +420,14 @@ class DelegatedAuth:
             if not result or "access_token" not in result:
                 raise runtime.LoginRequired("Sign-in did not return a usable token for the configured test user")
             claims = runtime.inspect_acquired_token(
-                result["access_token"], resource, self.tenant_id, self.expected_upn, self.expected_object_id,
-                required_scopes=scopes, client_id=self.client_id)
+                result["access_token"],
+                resource,
+                self.tenant_id,
+                self.expected_upn,
+                self.expected_object_id,
+                required_scopes=scopes,
+                client_id=self.client_id,
+            )
         except Exception:
             self._cache.deserialize(before)
             raise

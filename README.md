@@ -1,151 +1,60 @@
-# Copilot Chat × Fabric IQ evaluation accelerator
+# Copilot × IQ Evaluation Harness (`cfeval`)
 
-Check whether **Microsoft 365 Copilot Chat** answers business questions from the **expected semantic model** with
-the **expected number**. The harness asks a golden set of questions through the
-Microsoft 365 Copilot Chat API, records what Copilot cited and how it explains its sources, captures the **DAX that
-Fabric IQ ran** for each answer, scores everything, and writes it all to a **Fabric Eventhouse**. A **Fabric app**
-shows accuracy, routing, DAX and latency.
+Reproducible evaluation harness for **Microsoft 365 Copilot Chat**, **Fabric IQ** semantic models, **Work IQ** workplace grounding, **Fabric IQ MCP**, and **imported transcripts**.
 
-![Simplified architecture](docs/architecture/simplified-architecture.png)
+`cfeval` sends versioned golden test sets (`version: 2`), grades answers with deterministic unit-aware and structured assertions (`scalar`, `ranked_list`, `set`, `table`, `record`, `direction`, `citation_only`, `abstention`), correlates Fabric Workspace Monitoring (`SemanticModelLogs`) engine DAX queries, computes multi-trial reliability (`pass@1`, `pass^k`, Wilson 95% CI, exact paired McNemar `p`), and emits HTML/JUnit/JSONL scorecards plus idempotent Fabric Eventhouse telemetry.
 
-> Community accelerator, provided as-is under the MIT license. It is not a Microsoft product and isn't supported
-> by Microsoft. It uses preview services (the Copilot Chat API, Fabric Apps, Foundry custom evaluators); check
-> their current terms before you use it with production data.
+![Simplified architecture](docs/architecture/simplified-architecture.svg)
 
-## What it answers
+> Community accelerator released under the [MIT License](LICENSE). Provided as-is; not an official Microsoft product. Review [Platform Status](docs/reference/platform-status.md), [Cost & Limits](docs/get-started/cost-and-limits.md), [Threat Model](docs/responsible-use/threat-model.md), and [Transparency FAQ](TRANSPARENCY_FAQ.md) before running in a live demo tenant.
 
-| Question | How it's measured |
-|---|---|
-| Did Copilot give the expected value? | First unit-compatible number in the answer vs the golden value, with display-aware tolerance (`$12.8M` passes for 12,840,000). |
-| Did it cite the right report or semantic model? | Copilot's citations (Chat API attributions and links). Citing a decoy fails the ask. |
-| Did Fabric IQ query the right model? | DAX captured from workspace monitoring (`SemanticModelLogs`), matched to the ask by test user and time window. |
-| Why did it answer that way? | A follow-up turn asks Copilot to state its sources, filters and period; a judge model checks that against the evidence. |
-| How fast, and where does the time go? | Answer and follow-up latency, DAX count and duration per ask, harness stage timings. |
-| Is it getting better or worse? | Every run lands in the Eventhouse: trends, flaky questions, Option 1 vs Option 2 agreement. |
-
-## Two ways to run the evaluation
-
-Both options use the same harness to drive Copilot Chat (no evaluation framework can call Copilot itself), the
-same golden set and the same telemetry tables. They differ in what scores the answers.
-
-| | Option 1 · Fabric-native | Option 2 · Microsoft Foundry Evaluations |
-|---|---|---|
-| Scoring | Deterministic Python checks plus a judge model deployed in Foundry | Foundry evaluation runs: the same checks as **code evaluators**, plus **prompt** and **built-in** evaluators |
-| Where it runs | A Fabric notebook (or locally) | Harness in a notebook; scoring in your Foundry project |
-| Results | Eventhouse, KQL and the Fabric app | Foundry report and run comparison, **and** the same Eventhouse tables |
-| Pick it when | You want everything in Fabric with the fewest moving parts | Your AI evaluation practice is standardized on Foundry |
-
-**Demo default: Option 1 only.** Option 2 is optional and can fail in the preview service before returning grades.
-Keep its original service IDs/error and stop; never substitute local grades or start another dataset run blindly.
-The low-level CLI still offers `--option both` for a separately approved comparison.
-
-## Quickstart (offline, 2 minutes)
-
-No sign-in and no Azure resources: a simulated tenant mimics Copilot Chat, Fabric IQ's DAX, workspace monitoring
-delays, the judge model and Foundry. Python 3.10+ with `requests` is all it needs.
+## 60-Second Offline Quickstart (Zero Cloud Credentials)
 
 ```bash
-git clone https://github.com/bgbailey/copilot_iq_eval
-cd copilot_iq_eval
-python -m pip install -e .
-python -m cfeval run --mock --option both
+python -m pip install -e ".[dev]"
+
+# 1. Run untuned vs tuned simulated baselines on the 8-case Contoso smoke suite
+python -m cfeval run --mock --profile untuned --golden data/golden/contoso-smoke.yaml --run-id demo-untuned --no-publish
+python -m cfeval run --mock --profile tuned   --golden data/golden/contoso-smoke.yaml --run-id demo-tuned   --no-publish
+
+# 2. Compare paired runs (discordant pairs, Wilson 95% CIs, exact McNemar p-value) & render HTML report
+python -m cfeval compare --baseline runs/demo-untuned --candidate runs/demo-tuned
+python -m cfeval report --run-dir runs/demo-tuned --out runs/demo-tuned/report.html
+
+# 3. Score a pre-captured JSONL transcript offline
+python -m cfeval run --target transcript-import --transcript samples/contoso/transcript_sample.jsonl --golden data/golden/contoso-smoke.yaml --no-publish
 ```
 
-Or open [`notebooks/00_quickstart_offline.ipynb`](notebooks/00_quickstart_offline.ipynb). To see the scorecard app
-with sample data, use **Node 24 LTS**, then `npm ci` and `npm run dev` in [`app/standalone`](app/standalone).
-Simulated history is labelled and its aggregate trend is not a live score or measured tuning result.
+## How This Relates to Microsoft's Evaluation Tools
 
-## Live setup (demo tenant)
+| Tool / Capability | Primary Role | How `cfeval` Fits In |
+|---|---|---|
+| **`@microsoft/m365-copilot-eval` & Work IQ Dev Tools** *(Preview)* | Node CLI (`runevals`) batch-running M365 Copilot prompts with built-in AI prose/citation graders. | Round-trips via `cfeval golden export --format m365-copilot-eval` and `cfeval run --target import --from-m365-copilot-eval` to add unit-aware numeric tolerances, decoy gates, and DAX correlation ([guide](docs/how-to/use-with-the-evaluations-cli.md)). |
+| **Fabric Data Agent Evaluation SDK** *(Preview)* | Notebook SDK (`fabric-data-agent-sdk`) evaluating standalone Fabric data agents on `F2+` capacity. | Evaluates cross-model **M365 Copilot Chat + Fabric IQ** routing, correlates `SemanticModelLogs` DAX, and optionally wraps `fabric-data-agent` as a `Target`. |
+| **Microsoft Foundry Evaluations** *(GA / Custom Code Preview)* | Cloud evaluation portal, agent evaluators, and LLM judges. | Exports pure-stdlib (<256 KB) custom code scorers and optional calibrated Layer 5 judge workflows (`--option foundry`). |
 
-**Bring your existing semantic models, reports, workspaces and capacity.** These scripts never create/delete
-workspaces, replace models/reports, manage capacity, or automate Entra consent, RLS or Prep data for AI.
+## Platform Status (Last Verified: 2026-11-13)
 
-1. Complete the manual licensing, consent, test-user access/RLS, AI-preparation and labelled sign-in gates in
-   [docs/SETUP.md](docs/SETUP.md). Enable monitoring **data collection** in every expected/decoy workspace.
-2. Copy `.env.example` to a private `.env`; configure exact identities and existing target IDs. Create a separate,
-   calibrated CSV from [`data/golden/demo_questions.template.csv`](data/golden/demo_questions.template.csv).
-   Preserve the fictional Q01–Q08 baseline/history; changed prompts get new IDs.
-3. Use the two entrypoints below. Setup is read-only unless both an operation flag and `--apply` are supplied.
-   The rehearsal uses explicit per-run attempt caps, one question + one why turn per conversation,
-   disables Chat/judge retries, and never invokes Foundry dataset evaluations.
-4. Scaffold, overlay and publish the app separately using [app/README.md](app/README.md). Hosted SSO and browser
-   views are manual acceptance gates, not something a standalone build can prove.
+| Dependency / Surface | Status | Evidence & Constraints |
+|---|---|---|
+| **Fabric IQ in M365 Copilot Chat** & **Power BI Copilot Q&A** | **GA** | Enforces user RLS/OLS; requires M365 Copilot licence + per-model Copilot enabled; verified answers can be bypassed via Fabric IQ. |
+| **Fabric Workspace Monitoring (`SemanticModelLogs`) & Eventhouse** | **GA** | Enables `engine+citations` DAX verification; consumes Fabric capacity CU; 30-day default log retention. |
+| **M365 Copilot Chat API (`/beta/copilot/conversations`)** | **Preview** | Delegated user auth only (broad Graph read scopes — **use a dedicated synthetic test account**, never an employee mailbox). |
+| **Fabric IQ MCP Server** & **`@microsoft/m365-copilot-eval` (v2)** | **Preview** | Delegated `Item.Read.All` / `Item.Execute.All` (`tool_call` tier); CLI interop pinned to v2 schema `2.0`. |
+| **Foundry Custom Code Evaluators** & **Fabric Apps (`app/`)** | **Preview** | Optional extras; core CLI, local HTML reports (`cfeval report`), and standalone Vite preview work 100% offline. |
 
-```powershell
-python -m pip install -e ".[copilot,kusto,judge,sql]"
-# Install Microsoft ODBC Driver 18 for SQL Server separately if absent.
-python tools/setup_demo.py --env .env
-python tools/setup_demo.py --env .env --telemetry --shortcuts --refresh-golden --apply
-# Review calibrated expected_answer text too, then run ONCE within your explicitly approved allowance:
-python tools/rehearse_demo.py --env .env --run-id demo-unique-01 --max-questions 8 --max-judge-calls 16
-# If publication observation times out, SAME run, read-only (no reasks/regrading/republishing):
-python tools/rehearse_demo.py --env .env --run-id demo-unique-01 --verify-only --wait-seconds 1200
-```
+Full citation matrix (`R1`–`R17`): [Platform Status](docs/reference/platform-status.md). Vocabulary mapping: [Glossary](docs/reference/glossary.md).
 
-The operator tracks the cumulative approved allowance across controls and the final run; failed/ambiguous
-attempts still count. A new run ID is not a new approval. Exit **0** means scripted gates pass (browser gates remain),
-**2** means quality FAIL, **3** means runtime ERROR/incomplete evidence or publication, **64** means CLI usage error.
+## Documentation Map
 
-Step by step: [docs/SETUP.md](docs/SETUP.md). Demo script: [docs/DEMO.md](docs/DEMO.md). How it fits together:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-## What gets recorded
-
-Every row carries `RunId`, and ask-level rows carry `AskId`, so a Copilot ask, its DAX, its scores and its timings
-join on one key.
-
-| Table | One row per |
-|---|---|
-| `EvalRun` | run: option, golden set hash, pass rate, accuracy, latency p50/p95, Foundry report link |
-| `EvalQuestion` | golden question per run (a snapshot of what was expected) |
-| `EvalAsk` | ask: answer, citations, Copilot's own explanation, latency (streamed while the run is in progress) |
-| `FabricIqQuery` | DAX query Fabric IQ ran for an ask: semantic model, duration, offset from the ask, DAX text |
-| `EvalScore` | check per ask per option: value, artifact, model, judge, Foundry evaluators |
-| `EvalResult` | ask per option: verdict, scores, routing, DAX and latency in one wide row (what the app reads) |
-| `EvalEvent` | harness stage timing: ask, follow-up, trace wait, scoring, publish |
-
-Metric definitions: [docs/METRICS.md](docs/METRICS.md). Ready-made KQL: [`kql/queries.kql`](kql/queries.kql).
-
-## Repository layout
-
-```
-src/cfeval/          Python package: harness, scorers, DAX capture, Foundry integration, CLI
-  kql/functions.kql  KQL functions created in the Eventhouse
-kql/                 setup.kql (generated) and queries.kql
-data/golden/         golden question set (Contoso sample)
-notebooks/           00 offline quickstart, 01 Eventhouse setup, 02 Option 1, 03 Option 2
-app/                 Fabric app scorecard: overlay, entity generator, standalone preview
-docs/                architecture, setup, demo, metrics, troubleshooting
-tools/               setup_demo.py, rehearse_demo.py, app-contract generator
-```
-
-## Acceptance, not a production test platform
-
-**The documented scripted live demo is the acceptance test.** CI has one small offline mock smoke, generated-file
-checks and app typecheck/build; there is no unit-test framework or Python-version matrix.
-The rehearsal compares exact counts from the **current run JSONL**, including row versions, against all seven
-Eventhouse tables and the five SQL shortcut tables. Zero DAX/scores, missing why turns, incomplete check coverage
-and late publication cannot become success. The bounded `--verify-only` route observes publication, not traces.
-OneLake's five-minute minimum setting is **not** a hard upper bound; tables arrive independently.
-
-Known limits and fixes: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
-
-## Evidence gaps / still thin
-
-- The Chat API's use of Fabric IQ must be proved in your tenant; an owner DAX query or a simulated run is not that proof.
-- User/time-window DAX correlation is observational. A watermark and a quiet collection window do not guarantee
-  exhaustive logs. Missing, disabled or unsettled required evidence never produces a `PASS`.
-- A built standalone is not a deployed Fabric app. Check actual SSO, SQL connector reads and
-  completeness after OneLake propagation; sample history is always labelled separately.
-
-## Contributing, security, support
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [SUPPORT.md](SUPPORT.md). Use synthetic or
-public sample data in issues and pull requests: never customer data, tenant IDs or secrets.
+* **Get Started**: [Prerequisites](docs/get-started/prerequisites.md) · [Offline Quickstart](docs/get-started/quickstart-offline.md) · [First Live Run](docs/get-started/first-live-run.md) · [Cost & Limits](docs/get-started/cost-and-limits.md) · [Transcript Import](docs/get-started/quickstart-transcript-import.md)
+* **Concepts**: [How It Works](docs/concepts/how-it-works.md) · [Evidence & Verdicts](docs/concepts/evidence-and-verdicts.md) · [Metrics & Statistics](docs/concepts/metrics.md) · [Limitations](docs/concepts/limitations.md)
+* **How-To Guides**: [Author a Golden Set](docs/how-to/author-a-golden-set.md) · [Capture Engine DAX](docs/how-to/capture-dax.md) · [Calibrate the Judge](docs/how-to/calibrate-the-judge.md) · [Compare Runs & Gate CI](docs/how-to/compare-runs-and-gate-ci.md) · [Use with Evaluations CLI](docs/how-to/use-with-the-evaluations-cli.md) · [Add a Target](docs/how-to/add-a-target.md) · [Run a Live Demo](docs/how-to/run-a-live-demo.md) · [Deploy Scorecard App](docs/how-to/deploy-the-scorecard-app.md) · [Troubleshoot](docs/how-to/troubleshoot.md)
+* **Reference**: [Reference Index](docs/reference/README.md) · [CLI](docs/reference/cli.md) · [Exit Codes](docs/reference/exit-codes.md) · [Configuration](docs/reference/configuration.md) · [Golden Schema](docs/reference/golden-schema.md) · [Telemetry Schema](docs/reference/telemetry-schema.md) · [Platform Status](docs/reference/platform-status.md) · [Glossary](docs/reference/glossary.md)
+* **Responsible Use & Governance**: [Threat Model](docs/responsible-use/threat-model.md) · [Transparency FAQ](TRANSPARENCY_FAQ.md) · [ADRs](docs/decisions/0004-eventhouse-telemetry-store.md) · [Readiness Checklist](docs/validation/public-readiness-checklist.md) · [Security](SECURITY.md) · [Support](SUPPORT.md) · [Contributing](CONTRIBUTING.md)
+* **Synthetic Sample Kits**: [`data/golden/`](data/golden/README.md) (`42` Fabric IQ + `22` Work IQ cases) · [`samples/contoso/`](samples/contoso/README.md) · [`samples/work-iq/`](samples/work-iq/README.md) · [`app/`](app/README.md)
 
 ## Trademarks
 
-Microsoft, Microsoft 365, Copilot, Microsoft Fabric, Power BI and Azure are trademarks of the Microsoft group of
-companies. Use of Microsoft trademarks or logos must follow
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
-Contoso is a fictional company used for sample data.
+Microsoft, Microsoft 365, Copilot, Microsoft Fabric, Power BI, and Azure are trademarks of the Microsoft group of companies. Contoso (`@contoso.com`) is a fictional organization used exclusively for synthetic evaluation data.
+
