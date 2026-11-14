@@ -30,17 +30,17 @@ Documentation = "https://github.com/bgbailey/copilot_iq_eval/tree/main/docs"
 copilot = ["msal>=1.28"]
 kusto = ["azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6"]
 fabric = ["azure-identity>=1.19", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6"]
-judge = ["openai>=1.60,<3", "azure-identity>=1.19"]
+judge = ["openai>=1.60,<4", "azure-identity>=1.19"]
 sql = ["pyodbc>=5.1,<6"]
-foundry = ["azure-ai-projects>=1.0.0b10,<3", "openai>=1.60,<3", "azure-identity>=1.19"]
+foundry = ["azure-ai-projects>=1.0.0b10,<3", "openai>=1.60,<4", "azure-identity>=1.19"]
 otel = ["opentelemetry-api>=1.25", "opentelemetry-sdk>=1.25"]
 all = [
-  "msal>=1.28", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6", "openai>=1.60,<3", "azure-identity>=1.19",
+  "msal>=1.28", "azure-kusto-data>=4.6", "azure-kusto-ingest>=4.6", "openai>=1.60,<4", "azure-identity>=1.19",
   "azure-ai-projects>=1.0.0b10,<3", "pyodbc>=5.1,<6", "opentelemetry-api>=1.25", "opentelemetry-sdk>=1.25",
 ]
 dev = [
   "msal>=1.28",
-  "openai>=1.60,<3",
+  "openai>=1.60,<4",
   "azure-identity>=1.19",
   "pytest>=8.0",
   "pytest-cov>=5.0",
