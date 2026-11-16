@@ -16,10 +16,16 @@ from .schema import TABLES
 
 FABRIC_API = "https://api.fabric.microsoft.com/v1"
 FABRIC_RESOURCE = "https://api.fabric.microsoft.com"
+ONELAKE_DFS = "https://onelake.dfs.fabric.microsoft.com"
+ONELAKE_RESOURCE = "https://storage.azure.com"
 
 
 def fabric_api_token(settings=None):
     return runtime.token_for(FABRIC_RESOURCE, settings)
+
+
+def onelake_token(settings=None):
+    return runtime.token_for(ONELAKE_RESOURCE, settings)
 
 
 class FabricApiError(RuntimeError):
@@ -54,7 +60,7 @@ class FabricClient:
         self.skill = skill
         self.sleep_fn = sleep_fn
 
-    def _request(self, method, path, body=None, params=None, missing_ok=False):
+    def _request_raw(self, method, path, body=None, params=None, missing_ok=False, skill=None):
         url = path if path.startswith("http") else self.base_url + path
         parsed = urlsplit(url)
         bad_origin = (parsed.scheme, parsed.netloc.lower()) != self._origin
@@ -65,6 +71,7 @@ class FabricClient:
             if isinstance(self.timeout_s, (int, float))
             else self.timeout_s
         )
+        eff_skill = skill or self.skill
         try:
             r = request_with_retry(
                 self.session,
@@ -79,19 +86,25 @@ class FabricClient:
                 allow_statuses=(404,) if missing_ok else (),
                 headers=lambda: {
                     "Authorization": "Bearer " + self._token(),
-                    "x-ms-fabric-skill": self.skill,
+                    "x-ms-fabric-skill": eff_skill,
                 },
                 allow_redirects=False,
             )
             if missing_ok and getattr(r, "status_code", 200) == 404:
                 return None
-            return r.json() if getattr(r, "content", None) else {}
+            return r
         except HttpStatusError as exc:
             raise FabricApiError(
                 "Fabric API %s %s returned %s: %s" % (method, path, exc.status_code, exc.body[:500])
             ) from exc
         except requests.RequestException as exc:
             raise FabricApiError("Fabric API %s %s failed: %s" % (method, path, exc)) from exc
+
+    def _request(self, method, path, body=None, params=None, missing_ok=False, skill=None):
+        r = self._request_raw(method, path, body=body, params=params, missing_ok=missing_ok, skill=skill)
+        if r is None:
+            return None
+        return r.json() if getattr(r, "content", None) else {}
 
     def workspace(self, workspace_id):
         return self._request("GET", "/workspaces/%s" % workspace_id)
@@ -154,6 +167,114 @@ class FabricClient:
         if saved.get("target", {}).get("oneLake") != target or saved.get("transform"):
             raise FabricApiError("Shortcut %s/%s did not read back with its expected target" % (path, name))
         return saved
+
+    def refresh_sql_endpoint(
+        self,
+        workspace_id,
+        sql_endpoint_id,
+        timeout_minutes=3,
+        poll_interval_s=5.0,
+        max_polls=36,
+    ):
+        """Trigger SQL analytics endpoint metadata sync and poll 202 LRO completion when returned."""
+        path = "/workspaces/%s/sqlEndpoints/%s/refreshMetadata" % (workspace_id, sql_endpoint_id)
+        body = {"timeout": {"timeUnit": "Minutes", "value": max(1, int(timeout_minutes))}}
+        resp = self._request_raw("POST", path, body=body, skill="sqldw-cli")
+        status_code = getattr(resp, "status_code", 200)
+        headers = getattr(resp, "headers", None) or {}
+        location = headers.get("Location") or headers.get("location")
+        if status_code != 202 or not location:
+            return resp.json() if getattr(resp, "content", None) else {"status": "Succeeded"}
+
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        try:
+            first_wait = max(1.0, min(30.0, float(retry_after))) if retry_after is not None else float(poll_interval_s)
+        except (TypeError, ValueError):
+            first_wait = float(poll_interval_s)
+
+        for attempt in range(max(1, int(max_polls))):
+            self.sleep_fn(first_wait if attempt == 0 else float(poll_interval_s))
+            op = self._request("GET", location, skill="sqldw-cli") or {}
+            state = str(op.get("status") or "").strip().lower()
+            if state in ("succeeded", "completed"):
+                return op
+            if state in ("failed", "cancelled", "canceled"):
+                raise FabricApiError(
+                    "SQL endpoint metadata refresh %s for %s: %s" % (state, sql_endpoint_id, op.get("error") or op)
+                )
+        raise FabricApiError(
+            "SQL endpoint metadata refresh timed out after %d polls for %s" % (int(max_polls), sql_endpoint_id)
+        )
+
+
+def onelake_delta_version(
+    workspace_id,
+    item_id,
+    table="EvalRun",
+    *,
+    token_provider=None,
+    session=None,
+    base_url=ONELAKE_DFS,
+    timeout_s=30.0,
+    settings=None,
+    sleep_fn=time.sleep,
+):
+    """Return the latest numeric Delta commit version in OneLake `_delta_log`, or None if absent."""
+    base = urlsplit(base_url.rstrip("/"))
+    if base.scheme != "https" or not base.hostname or base.username or base.password or base.query or base.fragment:
+        raise ValueError("OneLake DFS base must be an HTTPS URL without credentials, query or fragment")
+    tok_fn = token_provider or (lambda: onelake_token(settings))
+    sess = session or requests.Session()
+    url = "%s/%s" % (base_url.rstrip("/"), quote(str(workspace_id), safe=""))
+    directory = "%s/Tables/%s/_delta_log" % (str(item_id).strip("/"), str(table).strip("/"))
+    resp = request_with_retry(
+        sess,
+        "GET",
+        url,
+        params={"resource": "filesystem", "directory": directory, "recursive": "false"},
+        timeout=(min(10.0, float(timeout_s)), float(timeout_s)),
+        max_retries=2,
+        backoff_base=1.0,
+        sleep_fn=sleep_fn,
+        allow_statuses=(404,),
+        headers=lambda: {"Authorization": "Bearer " + tok_fn()},
+        allow_redirects=False,
+    )
+    if getattr(resp, "status_code", 200) == 404:
+        return None
+    payload = resp.json() if getattr(resp, "content", None) else {}
+    commits = []
+    for entry in payload.get("paths") or []:
+        name = str(entry.get("name") or "")
+        leaf = name.rsplit("/", 1)[-1]
+        if leaf.endswith(".json") and leaf[:-5].isdigit():
+            commits.append(int(leaf[:-5]))
+    return max(commits) if commits else None
+
+
+def wait_for_onelake_delta(
+    workspace_id,
+    item_id,
+    *,
+    min_version=0,
+    table="EvalRun",
+    wait_seconds=180.0,
+    poll_seconds=10.0,
+    monotonic_fn=time.monotonic,
+    sleep_fn=time.sleep,
+    **kwargs,
+):
+    """Poll OneLake `_delta_log` until a numeric commit >= min_version appears or wait_seconds expires."""
+    deadline = monotonic_fn() + max(0.0, float(wait_seconds))
+    latest = None
+    while True:
+        latest = onelake_delta_version(workspace_id, item_id, table=table, sleep_fn=sleep_fn, **kwargs)
+        if latest is not None and latest >= int(min_version):
+            return latest
+        remaining = deadline - monotonic_fn()
+        if remaining <= 0:
+            return latest
+        sleep_fn(min(max(1.0, float(poll_seconds)), remaining))
 
 
 def app_tables():

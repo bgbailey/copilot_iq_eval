@@ -13,7 +13,7 @@ python -m cfeval <subcommand> [options]
 | Flag | Default | Description |
 |---|---|---|
 | `-h`, `--help` | — | Show help message and exit |
-| `--env` | `'.env'` | settings file (default .env) |
+| `--env`, `--env-file` | `'.env'` | settings file (default .env) |
 | `--version` | — | show program's version number and exit |
 
 ## Subcommands Overview
@@ -43,6 +43,7 @@ python -m cfeval <subcommand> [options]
 | [`cfeval export`](#cfeval-export) | export runs or golden sets to OTel, Promptfoo, Foundry, or M365 Eval formats |
 | [`cfeval targets`](#cfeval-targets) | list registered evaluation targets |
 | [`cfeval setup`](#cfeval-setup) | consolidated Eventhouse and Lakehouse shortcut setup |
+| [`cfeval sync-sql`](#cfeval-sync-sql) | refresh Lakehouse SQL analytics endpoint metadata after Eventhouse writes |
 | [`cfeval verify`](#cfeval-verify) | end-to-end verification of golden schema, harness, and telemetry tables |
 
 ## `cfeval doctor`
@@ -97,7 +98,7 @@ ask the golden set and score it (Local scoring or Foundry Evaluations scoring)
 |---|---|---|---|
 | `--option` | `both`, `fabric-native`, `foundry` | `'fabric-native'` | scoring backend: fabric-native (Local scoring), foundry (Foundry Evaluations [experimental]), or both |
 | `--mock` | — | `False` | simulated tenant: no sign-in, no network |
-| `--profile` | `baseline`, `untuned`, `improving`, `tuned`, `ambiguous` | `'baseline'` | simulated behaviour (with --mock) |
+| `--profile`, `--mock-profile` | `baseline`, `untuned`, `improving`, `tuned`, `ambiguous` | `'baseline'` | simulated behaviour (with --mock) |
 | `--seed` | — | `7` |  |
 | `--repeats` | — | — |  |
 | `--golden` | — | — | golden set path (.yaml, .json, or .csv) |
@@ -145,6 +146,7 @@ re-capture DAX and re-score an existing run folder
 |---|---|---|---|
 | `<run_folder>` | — | — |  |
 | `--tables` | — | — | comma-separated tables to send (default: all); avoids duplicating rows that were already ingested |
+| `--sync-sql` | — | `False` | wait for OneLake Delta export and refresh Lakehouse SQL analytics endpoint metadata |
 
 ## `cfeval golden-refresh`
 
@@ -152,6 +154,7 @@ recompute expected values from reference DAX
 
 | Argument / Option | Choices | Default | Description |
 |---|---|---|---|
+| `--golden` | — | — | golden set path override (.yaml, .json, or .csv) |
 | `--write` | — | `False` |  |
 
 ## `cfeval shortcuts`
@@ -205,6 +208,8 @@ apply release gate thresholds and emit JUnit XML / Markdown summary
 | `<run_folder>` | — | — | completed run directory |
 | `--backend` | `fabric-native`, `foundry` | `'fabric-native'` |  |
 | `--min-pass-rate` | — | `0.8` |  |
+| `--baseline` | — | — | optional baseline run directory to check paired regressions |
+| `--max-regressions` | — | `0` | maximum regressions allowed vs --baseline |
 | `--junit` | — | — | write JUnit XML report to path |
 | `--summary-md` | — | — | write Markdown job summary to path |
 
@@ -214,6 +219,8 @@ statistically compare baseline and candidate run folders
 
 | Argument / Option | Choices | Default | Description |
 |---|---|---|---|
+| `<baseline_dir>` | — | — | positional baseline run directory |
+| `<candidate_dir>` | — | — | positional candidate run directory |
 | `--baseline` | — | — | baseline run directory |
 | `--candidate` | — | — | candidate run directory |
 | `--backend` | `fabric-native`, `foundry` | `'fabric-native'` |  |
@@ -301,12 +308,25 @@ consolidated Eventhouse and Lakehouse shortcut setup
 |---|---|---|---|
 | `--skip-eventhouse` | — | `False` |  |
 | `--skip-shortcuts` | — | `False` |  |
+| `--sync-sql` | — | `False` | refresh Lakehouse SQL analytics endpoint metadata |
 | `--onelake-latency` | — | `5` |  |
 | `--lakehouse-workspace` | — | `""` |  |
 | `--lakehouse` | — | `""` |  |
+| `--sql-endpoint` | — | `""` |  |
 | `--kql-workspace` | — | `""` |  |
 | `--kql-database` | — | `""` |  |
 | `--path` | — | `""` |  |
+
+## `cfeval sync-sql`
+
+refresh Lakehouse SQL analytics endpoint metadata after Eventhouse writes
+
+| Argument / Option | Choices | Default | Description |
+|---|---|---|---|
+| `--lakehouse-workspace` | — | `""` | workspace ID hosting the Lakehouse |
+| `--lakehouse` | — | `""` | Lakehouse item ID (optional if SQL_ENDPOINT_ID is set) |
+| `--sql-endpoint` | — | `""` | SQL analytics endpoint ID (SQL_ENDPOINT_ID) |
+| `--timeout-minutes` | — | `3` | metadata refresh timeout in minutes |
 
 ## `cfeval verify`
 

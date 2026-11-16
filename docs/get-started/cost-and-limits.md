@@ -24,8 +24,9 @@ Local `runs/<run_id>/` artifacts and telemetry Eventhouse rows store text prompt
 
 Deterministic Layers 1–4 (`--scorer fabric-native`, the default) execute locally in Python and consume **0 LLM tokens**.
 
-When optional Layer 5 LLM-as-judge (`--judge` or `--scorer foundry`) is enabled against a model deployment in your demo Azure subscription:
+When optional Layer 5 LLM-as-judge (`--judge` or `--option foundry`) is enabled against a model deployment in your demo Azure subscription:
 
+* **Calls per judged ask**: `2` judge calls per ask in standard `followup` explain mode (`judge_answer` + `why`), and up to `3` calls per ask (`--max-judge-calls = 3 * N`) when `llm_extract` disambiguates answers containing multiple candidate numbers.
 * **Per judged turn**: ~`700`–`1,200` input tokens (system rubric + question + expected intent + Copilot response + citations) and ~`120`–`250` output tokens (structured JSON reason + score).
 * **Example suite budgets**:
 

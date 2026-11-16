@@ -9,7 +9,7 @@ The `mcp-agent` target runs an OpenAI-compatible tool-calling loop against any s
 ```powershell
 python -m pip install -e ".[mcp]"
 
-$env:CFEVAL_MCP_COMMAND = "python -m my_bi_mcp_server"
+$env:CFEVAL_MCP_SERVER_COMMAND = "python -m my_bi_mcp_server"
 $env:CFEVAL_JUDGE_ENDPOINT = "https://my-aoai.openai.azure.com"
 $env:CFEVAL_JUDGE_DEPLOYMENT = "gpt-4o"
 
@@ -30,7 +30,6 @@ Test a Fabric Data Agent endpoint directly before exposing it through M365 Copil
 python -m cfeval run `
   --target fabric-data-agent `
   --golden data/golden/contoso.yaml `
-  --collector kql `
   --run-id data-agent-01
 ```
 

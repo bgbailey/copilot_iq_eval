@@ -7,6 +7,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Lakehouse SQL analytics endpoint metadata sync (`cfeval sync-sql`)**: Added `FabricClient.refresh_sql_endpoint`,
+  OneLake `_delta_log` commit polling (`onelake_delta_version` / `wait_for_onelake_delta`), `cfeval sync-sql`, and
+  `--sync-sql` flags on `cfeval setup`, `cfeval publish`, `tools/setup_demo.py`, and `tools/rehearse_demo.py` so
+  hosted Fabric scorecard apps and T-SQL endpoints reflect newly ingested Eventhouse runs and additive schema upgrades
+  without manual portal clicks.
+- **Repeatable demo baseline reset (`tools/setup_demo.py --reset-baseline --apply`)**: Clears row data across the seven
+  telemetry Eventhouse tables in place (preserving tables, mappings, functions, and OneLake shortcuts), batch-ingests a
+  deterministic 6-run simulated progression history, waits for OneLake Delta commits, and refreshes `SQL_ENDPOINT_ID`.
+- **CLI ergonomic aliases**: Added `--env` / `--env-file` on the root CLI and operational tools, `--mock-profile` alias
+  on `run`, `--golden` on `golden-refresh`, positional baseline/candidate arguments on `compare`, and `--baseline` /
+  `--max-regressions` paired regression checks on `gate`.
+
+### Fixed
+
+- Corrected `app/README.md`, `.env.example`, and deployment how-to guides to specify `SQL_ENDPOINT_ID`
+  (`properties.sqlEndpointProperties.id`) rather than `LAKEHOUSE_ID` for `npx rayfin connector add --type
+  fabric-sqlanalytics --item-id`, and aligned all CLI flags and `CFEVAL_*` environment variable names across `docs/`.
+
 ## [0.2.0] - 2026-11-13
 
 ### Added

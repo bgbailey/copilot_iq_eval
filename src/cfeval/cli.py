@@ -913,8 +913,54 @@ def cmd_rescore(settings: Settings, args: argparse.Namespace) -> int:
 
 
 def cmd_publish(settings: Settings, args: argparse.Namespace) -> int:
+    from .fabric_rest import onelake_delta_version, wait_for_onelake_delta
+
+    prev_ver: int | None = None
+    if getattr(args, "sync_sql", False) and settings.eventhouse_workspace_id and settings.eventhouse_database_id:
+        try:
+            prev_ver = onelake_delta_version(
+                settings.eventhouse_workspace_id,
+                settings.eventhouse_database_id,
+                table="EvalRun",
+                settings=settings,
+            )
+        except Exception:
+            prev_ver = None
     tables = [t.strip() for t in args.tables.split(",")] if args.tables else None
     _republish(settings, Path(args.run_folder), tables)
+    if getattr(args, "sync_sql", False):
+        if settings.eventhouse_workspace_id and settings.eventhouse_database_id:
+            target_ver = (prev_ver + 1) if prev_ver is not None else 0
+            wait_for_onelake_delta(
+                settings.eventhouse_workspace_id,
+                settings.eventhouse_database_id,
+                min_version=target_ver,
+                table="EvalRun",
+                wait_seconds=180.0,
+                poll_seconds=10.0,
+                settings=settings,
+            )
+        return cmd_sync_sql(settings, args)
+    return 0
+
+
+def cmd_sync_sql(settings: Settings, args: argparse.Namespace) -> int:
+    from .fabric_rest import FabricClient
+
+    lh_ws = getattr(args, "lakehouse_workspace", "") or settings.lakehouse_workspace_id
+    sql_ep = getattr(args, "sql_endpoint", "") or settings.sql_endpoint_id
+    lh_id = getattr(args, "lakehouse", "") or settings.lakehouse_id
+    client = FabricClient(settings=settings, skill="sqldw-cli")
+    if lh_ws and not sql_ep and lh_id:
+        lh = client.lakehouse(lh_ws, lh_id) or {}
+        sql_ep = str(((lh.get("properties") or {}).get("sqlEndpointProperties") or {}).get("id") or "")
+    if not (lh_ws and sql_ep):
+        raise SystemExit(
+            "Set LAKEHOUSE_WORKSPACE_ID and SQL_ENDPOINT_ID (or LAKEHOUSE_ID) to refresh SQL endpoint metadata."
+        )
+    timeout_minutes = int(getattr(args, "timeout_minutes", 3) or 3)
+    client.refresh_sql_endpoint(lh_ws, sql_ep, timeout_minutes=timeout_minutes)
+    print("ok  refreshed SQL analytics endpoint metadata (%s)" % sql_ep)
     return 0
 
 
@@ -923,7 +969,9 @@ def cmd_golden_refresh(settings: Settings, args: argparse.Namespace) -> int:
 
     if not settings.semantic_model_workspace_id:
         raise SystemExit("Set SEMANTIC_MODEL_WORKSPACE_ID (the workspace that holds the semantic models).")
-    path = resolve_golden_path(settings.golden_set)
+    golden_raw = getattr(args, "golden", None) or settings.golden_set
+    g_local = _resolve_local_path(golden_raw)
+    path = g_local if g_local.exists() else resolve_golden_path(golden_raw)
     questions = load_golden(path)
     report = refresh_expected_values(questions, PowerBiClient(settings=settings), settings.semantic_model_workspace_id)
     for r in report:
@@ -1025,8 +1073,12 @@ def _load_latest_results_for_compare(folder: Path, backend: str) -> tuple[list[d
 def cmd_compare(settings: Settings, args: argparse.Namespace) -> int:
     from .stats import compare_runs
 
-    base_dir = Path(args.baseline)
-    cand_dir = Path(args.candidate)
+    base_raw = getattr(args, "baseline", None) or getattr(args, "baseline_dir", None)
+    cand_raw = getattr(args, "candidate", None) or getattr(args, "candidate_dir", None)
+    if not (base_raw and cand_raw):
+        raise SystemExit("Pass baseline and candidate run directories (--baseline/--candidate or positional args).")
+    base_dir = Path(base_raw)
+    cand_dir = Path(cand_raw)
     base_rows, base_k = _load_latest_results_for_compare(base_dir, args.backend)
     cand_rows, cand_k = _load_latest_results_for_compare(cand_dir, args.backend)
     cmp = compare_runs(base_rows, cand_rows, k=max(base_k, cand_k), alpha=args.alpha)
@@ -1194,6 +1246,10 @@ def cmd_setup(settings: Settings, args: argparse.Namespace) -> int:
         rc = cmd_shortcuts(settings, sc_ns)
         if rc != 0:
             return rc
+    if getattr(args, "sync_sql", False):
+        rc = cmd_sync_sql(settings, args)
+        if rc != 0:
+            return rc
     return 0
 
 
@@ -1342,7 +1398,7 @@ def cmd_golden(settings: Settings, args: argparse.Namespace) -> int:
 def cmd_gate(settings: Settings, args: argparse.Namespace) -> int:
     from xml.sax.saxutils import escape as _xml_escape
 
-    from .stats import summarize_run_stats
+    from .stats import compare_runs, summarize_run_stats
 
     folder = Path(args.run_folder)
     if not folder.exists():
@@ -1362,21 +1418,35 @@ def cmd_gate(settings: Settings, args: argparse.Namespace) -> int:
     pass_rate = float(stats["pass_rate"])
     lo, hi = float(stats["wilson_low"]), float(stats["wilson_high"])
 
+    regressions: list[str] = []
+    baseline_raw = getattr(args, "baseline", None)
+    max_reg = int(getattr(args, "max_regressions", 0) or 0)
+    if baseline_raw:
+        base_rows, base_k = _load_latest_results_for_compare(Path(baseline_raw), args.backend)
+        cmp = compare_runs(base_rows, rows, k=max(base_k, k_val))
+        regressions = list(cmp["regressions"])
+
     if n_err > 0 or (n_pass == 0 and n_inc == len(rows)):
         exit_code = 3
         gate_verdict = "INCONCLUSIVE_OR_ERROR"
-    elif n_crit > 0 or pass_rate < args.min_pass_rate:
+    elif n_crit > 0 or pass_rate < args.min_pass_rate or (baseline_raw and len(regressions) > max_reg):
         exit_code = 2
         gate_verdict = "FAIL"
     else:
         exit_code = 0
         gate_verdict = "PASS"
 
+    reg_line = (
+        "- **Regressions vs baseline**: %d (%s)\n" % (len(regressions), ", ".join(regressions) or "none")
+        if baseline_raw
+        else ""
+    )
     md = (
         "## Release Gate: `%s` (%s)\n\n"
         "- **Pass rate**: %.1f%% (min %.1f%%, 95%% Wilson CI [%.1f%%, %.1f%%])\n"
         "- **Critical failures**: %d\n"
         "- **Errors / Inconclusive**: %d / %d\n"
+        "%s"
         % (
             folder.name,
             gate_verdict,
@@ -1387,6 +1457,7 @@ def cmd_gate(settings: Settings, args: argparse.Namespace) -> int:
             n_crit,
             n_err,
             n_inc,
+            reg_line,
         )
     )
     print(md, end="")
@@ -1485,7 +1556,7 @@ def cmd_trace(settings: Settings, args: argparse.Namespace) -> int:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="cfeval", description="Copilot Chat x Fabric IQ evaluation harness")
-    p.add_argument("--env", default=".env", help="settings file (default .env)")
+    p.add_argument("--env", "--env-file", dest="env", default=".env", help="settings file (default .env)")
     p.add_argument("--version", action="version", version=__version__)
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -1513,7 +1584,12 @@ def parser() -> argparse.ArgumentParser:
     )
     r.add_argument("--mock", action="store_true", help="simulated tenant: no sign-in, no network")
     r.add_argument(
-        "--profile", choices=list(PROFILES_CLI), default="baseline", help="simulated behaviour (with --mock)"
+        "--profile",
+        "--mock-profile",
+        dest="profile",
+        choices=list(PROFILES_CLI),
+        default="baseline",
+        help="simulated behaviour (with --mock)",
     )
     r.add_argument("--seed", type=int, default=7)
     r.add_argument("--repeats", type=int)
@@ -1558,8 +1634,14 @@ def parser() -> argparse.ArgumentParser:
         "--tables",
         help="comma-separated tables to send (default: all); avoids duplicating rows that were already ingested",
     )
+    pb.add_argument(
+        "--sync-sql",
+        action="store_true",
+        help="wait for OneLake Delta export and refresh Lakehouse SQL analytics endpoint metadata",
+    )
 
     g = sub.add_parser("golden-refresh", help="recompute expected values from reference DAX")
+    g.add_argument("--golden", help="golden set path override (.yaml, .json, or .csv)")
     g.add_argument("--write", action="store_true")
 
     sc = sub.add_parser("shortcuts", help="shortcut the app tables from the KQL database into a lakehouse")
@@ -1604,12 +1686,16 @@ def parser() -> argparse.ArgumentParser:
     gt.add_argument("run_folder", help="completed run directory")
     gt.add_argument("--backend", choices=["fabric-native", "foundry"], default="fabric-native")
     gt.add_argument("--min-pass-rate", type=float, default=0.80)
+    gt.add_argument("--baseline", help="optional baseline run directory to check paired regressions")
+    gt.add_argument("--max-regressions", type=int, default=0, help="maximum regressions allowed vs --baseline")
     gt.add_argument("--junit", help="write JUnit XML report to path")
     gt.add_argument("--summary-md", help="write Markdown job summary to path")
 
     cmp_p = sub.add_parser("compare", help="statistically compare baseline and candidate run folders")
-    cmp_p.add_argument("--baseline", required=True, help="baseline run directory")
-    cmp_p.add_argument("--candidate", required=True, help="candidate run directory")
+    cmp_p.add_argument("baseline_dir", nargs="?", help="positional baseline run directory")
+    cmp_p.add_argument("candidate_dir", nargs="?", help="positional candidate run directory")
+    cmp_p.add_argument("--baseline", help="baseline run directory")
+    cmp_p.add_argument("--candidate", help="candidate run directory")
     cmp_p.add_argument("--backend", choices=["fabric-native", "foundry"], default="fabric-native")
     cmp_p.add_argument("--max-regressions", type=int, default=0)
     cmp_p.add_argument("--alpha", type=float, default=0.05)
@@ -1662,12 +1748,20 @@ def parser() -> argparse.ArgumentParser:
     st = sub.add_parser("setup", help="consolidated Eventhouse and Lakehouse shortcut setup")
     st.add_argument("--skip-eventhouse", action="store_true")
     st.add_argument("--skip-shortcuts", action="store_true")
+    st.add_argument("--sync-sql", action="store_true", help="refresh Lakehouse SQL analytics endpoint metadata")
     st.add_argument("--onelake-latency", type=int, default=5)
     st.add_argument("--lakehouse-workspace", default="")
     st.add_argument("--lakehouse", default="")
+    st.add_argument("--sql-endpoint", default="")
     st.add_argument("--kql-workspace", default="")
     st.add_argument("--kql-database", default="")
     st.add_argument("--path", default="")
+
+    ss = sub.add_parser("sync-sql", help="refresh Lakehouse SQL analytics endpoint metadata after Eventhouse writes")
+    ss.add_argument("--lakehouse-workspace", default="", help="workspace ID hosting the Lakehouse")
+    ss.add_argument("--lakehouse", default="", help="Lakehouse item ID (optional if SQL_ENDPOINT_ID is set)")
+    ss.add_argument("--sql-endpoint", default="", help="SQL analytics endpoint ID (SQL_ENDPOINT_ID)")
+    ss.add_argument("--timeout-minutes", type=int, default=3, help="metadata refresh timeout in minutes")
 
     vf = sub.add_parser("verify", help="end-to-end verification of golden schema, harness, and telemetry tables")
     vf.add_argument("--mock", action="store_true", help="run verification completely offline")
@@ -1702,6 +1796,7 @@ COMMANDS: dict[str, Callable[[Settings, argparse.Namespace], int]] = {
     "export": cmd_export,
     "targets": cmd_targets,
     "setup": cmd_setup,
+    "sync-sql": cmd_sync_sql,
     "verify": cmd_verify,
 }
 

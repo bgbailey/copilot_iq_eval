@@ -20,23 +20,24 @@ Copy `.env.example` to `.env` (gitignored) and populate your tenant and target s
 
 ```ini
 CFEVAL_TENANT_ID=00000000-0000-0000-0000-000000000000
-CFEVAL_COPILOT_CLIENT_ID=11111111-1111-1111-1111-111111111111
+CFEVAL_CLIENT_ID=11111111-1111-1111-1111-111111111111
 CFEVAL_TEST_USER_UPN=eval.tester@contoso.com
 
 # Optional: Fabric Workspace Monitoring KQL endpoint for engine+citations tier
-CFEVAL_MONITORING_KUSTO_URI=https://trd-example.z0.kusto.fabric.microsoft.com
-CFEVAL_MONITORING_DATABASE=WorkspaceMonitoring
+CFEVAL_MONITORING_QUERY_URI=https://trd-example.z0.kusto.fabric.microsoft.com
+CFEVAL_MONITORING_DATABASE=00000000-0000-0000-0000-000000000010
 ```
 
 Full environment variable reference: [Configuration Reference](../reference/configuration.md).
 
 ## 3. Run Chat-Only (`citations-only` Tier)
 
-Start with `--collector none` (or omit `CFEVAL_MONITORING_KUSTO_URI`) to validate authentication, prompts, and report citations before adding KQL correlation:
+Start with `--no-trace` (or omit `CFEVAL_MONITORING_QUERY_URI`) to validate authentication, prompts, and report citations before adding KQL correlation:
 
 ```powershell
 python -m cfeval run `
   --target copilot-chat `
+  --no-trace `
   --golden data/golden/contoso-smoke.yaml `
   --run-id live-chat-smoke-01 `
   --no-publish
@@ -46,14 +47,13 @@ When prompted for interactive or device-code sign-in, verify that you authentica
 
 ## 4. Add Workspace Monitoring Correlation (`engine+citations` Tier)
 
-Once `CFEVAL_MONITORING_KUSTO_URI` and `CFEVAL_MONITORING_DATABASE` are set, `cfeval` polls `SemanticModelLogs` after the conversation batch and joins engine-executed DAX queries back to each ask:
+Once `CFEVAL_MONITORING_QUERY_URI` and `CFEVAL_MONITORING_DATABASE` (or `CFEVAL_MONITORING_SOURCES`) are set, `cfeval` polls `SemanticModelLogs` after the conversation batch and joins engine-executed DAX queries back to each ask:
 
 ```powershell
 python -m cfeval run `
   --target copilot-chat `
-  --collector kql `
   --golden data/golden/contoso.yaml `
-  --trials 3 `
+  --repeats 3 `
   --run-id live-fabric-iq-01
 ```
 

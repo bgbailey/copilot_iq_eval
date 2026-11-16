@@ -10,13 +10,21 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from cfeval import runtime
 from cfeval.config import Settings
-from cfeval.fabric_rest import FabricClient, app_tables, create_app_shortcuts
+from cfeval.fabric_rest import (
+    FabricClient,
+    app_tables,
+    create_app_shortcuts,
+    onelake_delta_version,
+    wait_for_onelake_delta,
+)
 from cfeval.golden import load_golden, write_golden
+from cfeval.schema import TABLES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -190,12 +198,90 @@ def bundle(destination):
     )
 
 
+def reset_demo_baseline(settings, golden_path, runs=6, days=10, seed=7):
+    """Clear Eventhouse row data, seed a deterministic progression baseline, and sync the SQL endpoint."""
+    from cfeval.cli import DEFAULT_DEMO_AS_OF, simulate_runs
+    from cfeval.kusto import KustoQueryClient
+    from cfeval.sinks import EventhouseSink, JsonlSink, coerce_row
+
+    prev_ver = onelake_delta_version(
+        settings.eventhouse_workspace_id,
+        settings.eventhouse_database_id,
+        table="EvalRun",
+        settings=settings,
+    )
+    kclient = KustoQueryClient(settings.eventhouse_query_uri, settings=settings)
+    for tbl in TABLES:
+        kclient.mgmt(settings.eventhouse_database, ".clear table %s data" % tbl)
+
+    staging_parent = Path(settings.output_dir).resolve()
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir = Path(tempfile.mkdtemp(prefix=".reset-baseline-", dir=str(staging_parent)))
+    try:
+        outcomes = simulate_runs(
+            settings,
+            runs=runs,
+            days=days,
+            seed=seed,
+            publish=False,
+            as_of=DEFAULT_DEMO_AS_OF,
+            output_dir=tmp_dir,
+            golden_override=golden_path,
+        )
+        batched = {t: [] for t in TABLES}
+        for outcome in outcomes:
+            jsink = JsonlSink(outcome.folder)
+            for tbl in TABLES:
+                for row in jsink.read(tbl):
+                    batched[tbl].append(coerce_row(tbl, row))
+        eh_sink = EventhouseSink(
+            settings.eventhouse_query_uri,
+            settings.eventhouse_database,
+            settings.eventhouse_ingest_uri,
+            settings=settings,
+        )
+        for tbl, rows in batched.items():
+            if rows:
+                eh_sink.write(tbl, rows)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    target_ver = (prev_ver + 1) if prev_ver is not None else 0
+    latest_ver = wait_for_onelake_delta(
+        settings.eventhouse_workspace_id,
+        settings.eventhouse_database_id,
+        min_version=target_ver,
+        table="EvalRun",
+        wait_seconds=240.0,
+        poll_seconds=10.0,
+        settings=settings,
+    )
+    FabricClient(settings=settings, skill="sqldw-cli").refresh_sql_endpoint(
+        settings.lakehouse_workspace_id,
+        settings.sql_endpoint_id,
+    )
+    print(
+        "Reset Eventhouse to %d simulated baseline runs (OneLake Delta commit %s) and synced SQL endpoint %s."
+        % (runs, latest_ver if latest_ver is not None else "pending", settings.sql_endpoint_id)
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", default=".env")
+    parser.add_argument("--env", "--env-file", dest="env", default=".env")
     parser.add_argument("--offline", action="store_true", help="configuration/CSV validation only; no tokens/network")
     parser.add_argument("--telemetry", action="store_true", help="review/apply the existing Eventhouse setup")
     parser.add_argument("--shortcuts", action="store_true", help="review/apply the five non-overwriting shortcuts")
+    parser.add_argument(
+        "--sync-sql",
+        action="store_true",
+        help="preview/apply Lakehouse SQL analytics endpoint metadata refresh",
+    )
+    parser.add_argument(
+        "--reset-baseline",
+        action="store_true",
+        help="preview/apply clean simulated 6-run Eventhouse + SQL baseline reset",
+    )
     parser.add_argument(
         "--refresh-golden", action="store_true", help="preview reference DAX calibration; --apply saves"
     )
@@ -205,8 +291,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     print("Tip: `python -m cfeval setup` provides the consolidated CLI setup workflow.")
     try:
-        if args.offline and args.apply:
-            raise ValueError("--offline cannot be combined with --apply")
+        if args.offline and (args.apply or args.sync_sql or args.reset_baseline):
+            raise ValueError("--offline cannot be combined with --apply, --sync-sql, or --reset-baseline")
         if args.onelake_latency < 5:
             raise ValueError("OneLake availability has a five-minute minimum setting, not a hard delivery deadline")
         settings = configured_settings(args.env)
@@ -258,6 +344,24 @@ def main(argv=None):
                 )
                 if any(r["status"] != "ok" for r in results):
                     raise RuntimeError("Shortcut setup failed; conflicting targets were not overwritten")
+        if args.reset_baseline:
+            print(
+                "Baseline reset target: clear row data in %s, seed 6 simulated progression runs over %s, "
+                "and sync SQL endpoint %s." % (", ".join(TABLES), path, settings.sql_endpoint_id)
+            )
+            if args.apply:
+                reset_demo_baseline(settings, path)
+        elif args.sync_sql:
+            print(
+                "SQL endpoint metadata refresh target: %s/%s"
+                % (settings.lakehouse_workspace_id, settings.sql_endpoint_id)
+            )
+            if args.apply:
+                FabricClient(settings=settings, skill="sqldw-cli").refresh_sql_endpoint(
+                    settings.lakehouse_workspace_id,
+                    settings.sql_endpoint_id,
+                )
+                print("Refreshed SQL endpoint metadata for %s." % settings.sql_endpoint_id)
         if args.refresh_golden:
             if args.offline:
                 print("OFFLINE: reference DAX was not executed.")

@@ -18,7 +18,7 @@ from cfeval import runtime
 from cfeval.cli import build_harness
 from cfeval.clock import iso, utc_now
 from cfeval.config import Settings
-from cfeval.fabric_rest import app_tables
+from cfeval.fabric_rest import FabricApiError, FabricClient, app_tables, onelake_delta_version
 from cfeval.golden import golden_hash, load_golden
 from cfeval.schema import TABLES
 from setup_demo import ROOT, configured_settings, require_trace_progress, resolve_targets, sql_host
@@ -193,21 +193,65 @@ def eventhouse_counts(client, database, run_id):
     return {r["Table"]: int(r["Rows"]) for r in client.query(database, kql, {"run_id": run_id})}
 
 
-def verify_publication(settings, run_id, expected, wait_seconds, poll_seconds, module):
+def verify_publication(settings, run_id, expected, wait_seconds, poll_seconds, module, *, allow_sync_sql=False):
     from cfeval.kusto import KustoQueryClient
 
     client = KustoQueryClient(settings.eventhouse_query_uri, settings=settings)
     deadline = time.monotonic() + wait_seconds
+    expected_sql = {name: expected[name] for name in app_tables()}
+    last_sync = 0.0
+    baseline_delta = None
+    if allow_sync_sql and settings.eventhouse_workspace_id and settings.eventhouse_database_id:
+        try:
+            baseline_delta = onelake_delta_version(
+                settings.eventhouse_workspace_id,
+                settings.eventhouse_database_id,
+                table="EvalRun",
+                settings=settings,
+            )
+        except Exception:
+            baseline_delta = None
+
     while True:
         eventhouse = eventhouse_counts(client, settings.eventhouse_database, run_id)
         sql = sql_counts(settings, run_id, module)
+        if (
+            allow_sync_sql
+            and eventhouse == expected
+            and sql != expected_sql
+            and settings.lakehouse_workspace_id
+            and settings.sql_endpoint_id
+            and (time.monotonic() - last_sync) >= 30.0
+        ):
+            ready_for_sync = True
+            if settings.eventhouse_workspace_id and settings.eventhouse_database_id and baseline_delta is not None:
+                try:
+                    cur_delta = onelake_delta_version(
+                        settings.eventhouse_workspace_id,
+                        settings.eventhouse_database_id,
+                        table="EvalRun",
+                        settings=settings,
+                    )
+                    ready_for_sync = cur_delta is not None and (cur_delta > baseline_delta or last_sync > 0.0)
+                except Exception:
+                    ready_for_sync = True
+            if ready_for_sync:
+                last_sync = time.monotonic()
+                try:
+                    FabricClient(settings=settings, skill="sqldw-cli").refresh_sql_endpoint(
+                        settings.lakehouse_workspace_id,
+                        settings.sql_endpoint_id,
+                    )
+                    sql = sql_counts(settings, run_id, module)
+                except FabricApiError as exc:
+                    print("SQL metadata refresh notice (will retry if needed): %s" % exc)
         print("Table             JSONL  Eventhouse  SQL")
         for table in TABLES:
             print(
                 "%-17s %5d  %10s  %s"
                 % (table, expected[table], eventhouse.get(table, "MISSING"), sql.get(table, "n/a"))
             )
-        if eventhouse == expected and sql == {name: expected[name] for name in app_tables()}:
+        if eventhouse == expected and sql == expected_sql:
             print("Exact seven-table Eventhouse and five-table SQL publication verified for %s." % run_id)
             return
         if any(eventhouse.get(t, 0) > n or (sql.get(t) or 0) > n for t, n in expected.items()):
@@ -223,7 +267,7 @@ def verify_publication(settings, run_id, expected, wait_seconds, poll_seconds, m
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--env", default=".env")
+    parser.add_argument("--env", "--env-file", dest="env", default=".env")
     parser.add_argument("--run-id", required=True, help="unique immutable folder/operation label")
     parser.add_argument("--questions", help="comma-separated stable IDs; default all rows in GOLDEN_SET")
     parser.add_argument(
@@ -234,6 +278,16 @@ def main(argv=None):
     )
     parser.add_argument("--max-judge-calls", type=int, help="explicit direct judge-attempt ceiling")
     parser.add_argument("--verify-only", action="store_true", help="read original JSONL and publication only")
+    parser.add_argument(
+        "--sync-sql",
+        action="store_true",
+        help="explicitly refresh Lakehouse SQL endpoint metadata during publication wait",
+    )
+    parser.add_argument(
+        "--no-sync-sql",
+        action="store_true",
+        help="skip automatic Lakehouse SQL endpoint metadata refresh after Eventhouse ingestion",
+    )
     parser.add_argument("--wait-seconds", type=float, default=1200, help="read-only publication observation, 0..3600")
     parser.add_argument("--poll-seconds", type=float, default=30, help="publication polling interval, at least 5")
     parser.add_argument("--output-dir", help="override OUTPUT_DIR (also for --verify-only)")
@@ -389,7 +443,16 @@ def main(argv=None):
                 raise ValueError("Saved test-user identity differs from explicit configuration")
             if args.verify_only:
                 resolve_targets(settings)
-            verify_publication(settings, args.run_id, expected, args.wait_seconds, args.poll_seconds, module)
+            allow_sync = bool(args.sync_sql) if args.verify_only else (not args.no_sync_sql)
+            verify_publication(
+                settings,
+                args.run_id,
+                expected,
+                args.wait_seconds,
+                args.poll_seconds,
+                module,
+                allow_sync_sql=allow_sync,
+            )
             print(
                 "Demo link: %s"
                 % (

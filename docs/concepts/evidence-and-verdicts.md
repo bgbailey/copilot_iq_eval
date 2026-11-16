@@ -23,7 +23,7 @@ Because the Microsoft 365 Copilot Chat API (`/beta`) does not return the interna
 | `high` | Exact `CorrelationId` / `OperationId` match, **or** a single unambiguous `QueryEnd` window for `ExecutingUser` on a monitored model with zero overlapping turns. | Engine DAX attribution is deterministic for practical gating. |
 | `medium` | Multiple `QueryEnd` queries executed sequentially for `ExecutingUser` within the turn's `[RequestSentUtc, ResponseReceivedUtc]` window (common when Copilot inspects schema/measures and then runs the answer DAX) with no overlapping external turns. | All captured queries belong to this turn; inspect `dax_queries.jsonl` to see the final evaluation query. |
 | `low` | Overlapping concurrent queries for the same `ExecutingUser` or timestamps falling only within the outer clock-skew buffer. | Candidate DAX logs exist, but concurrent activity on the same account makes attribution uncertain. Run live suites sequentially under an isolated test user. |
-| `none` | Zero `SemanticModelLogs` events matched the turn window (monitoring disabled, KQL ingestion lag exceeded `CFEVAL_MONITORING_WAIT_SECONDS`, Work IQ document turn, or verified-answer bypass). | Engine evidence is absent; `cfeval` will not guess which model ran. |
+| `none` | Zero `SemanticModelLogs` events matched the turn window (monitoring disabled, KQL ingestion lag exceeded `CFEVAL_TRACE_WAIT_SECONDS`, Work IQ document turn, or verified-answer bypass). | Engine evidence is absent; `cfeval` will not guess which model ran. |
 
 ## Verdict Semantics (`PASS`, `FAIL`, `INCONCLUSIVE`, `ERROR`)
 

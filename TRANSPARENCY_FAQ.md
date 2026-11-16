@@ -54,7 +54,7 @@ When `routing_evidence_tier` is `citations-only` or `none`, `model` gates that r
 
 ## 5. Workspace Monitoring (`kql`) Latency and Correlation Caveats
 
-- **Ingestion lag:** Fabric Workspace Monitoring writes `SemanticModelLogs` asynchronously to Eventhouse; events typically land within 30–180 seconds after a Copilot turn completes, and occasionally longer under cold Eventhouse state. `cfeval` polls within a configurable window (`correlation_lag_s`), after which unmatched turns fall back transparently to `citations-only`.
+- **Ingestion lag:** Fabric Workspace Monitoring writes `SemanticModelLogs` asynchronously to Eventhouse; events typically land within 30–180 seconds after a Copilot turn completes, and occasionally longer under cold Eventhouse state. `cfeval` polls within a configurable window (`CFEVAL_TRACE_WAIT_SECONDS`), after which unmatched turns fall back transparently to `citations-only`.
 - **Shared-workspace concurrency:** Correlation matches `[started_utc - skew, ended_utc + lag]` plus user principal and model hints. Running concurrent interactive queries under the **same** test user (`eval.tester@contoso.com`) on the **same** semantic model during an evaluation window can introduce correlation ambiguity. Dedicated evaluation service/test accounts and quiet windows eliminate this risk.
 
 ---
@@ -63,7 +63,7 @@ When `routing_evidence_tier` is `citations-only` or `none`, `model` gates that r
 
 1. **Auditability:** Finance, sales, and operations stakeholders need exact reproducibility—`$12.84M` vs `$12.84M ± 0.5%` and exact artifact match—not an opaque rubric score that shifts across judge model versions.
 2. **Judge bias & calibration:** LLM judges can reward verbose, confident prose even when a number is subtly wrong or drawn from a decoy model.
-3. **Calibrated opt-in:** `cfeval` ships Azure AI Foundry / OpenAI judge evaluators (`Coherence`, `Fluency`, `Relevance`, `Groundedness`) as **advisory diagnostics** by default. Before enabling judge scores as a hard CI gate (`--gate-on-judge`), run `python -m cfeval calibrate-judge` against a human-labeled calibration file and verify **Cohen's kappa (`κ >= 0.70`)**.
+3. **Calibrated opt-in:** `cfeval` ships Azure AI Foundry / OpenAI judge evaluators (`Coherence`, `Fluency`, `Relevance`, `Groundedness`) as **advisory diagnostics** by default. Before enabling judge scores as a hard CI gate (`CFEVAL_JUDGE_GATES_VERDICT=true`), run `python -m cfeval calibrate-judge` against a human-labeled calibration file and verify **Cohen's kappa (`κ >= 0.70`)**.
 
 ---
 

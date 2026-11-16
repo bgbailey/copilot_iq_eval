@@ -27,10 +27,10 @@ python tools/check_public_wording.py
 python -c "from pathlib import Path; assert Path('data/golden/contoso.yaml').read_bytes() == Path('src/cfeval/sample/contoso.yaml').read_bytes()"
 
 # 8. End-to-end offline quickstart smoke (untuned -> tuned -> HTML report -> paired compare)
-python -m cfeval run --mock --mock-profile untuned --golden data/golden/contoso-smoke.yaml --run-id check-untuned --no-publish
-python -m cfeval run --mock --mock-profile tuned   --golden data/golden/contoso-smoke.yaml --run-id check-tuned   --no-publish
-python -m cfeval report --run-dir runs/check-tuned
-python -m cfeval compare runs/check-untuned runs/check-tuned
+python -m cfeval run --mock --profile untuned --golden data/golden/contoso-smoke.yaml --run-id check-untuned --no-publish
+python -m cfeval run --mock --profile tuned   --golden data/golden/contoso-smoke.yaml --run-id check-tuned   --no-publish
+python -m cfeval report runs/check-tuned
+python -m cfeval compare --baseline runs/check-untuned --candidate runs/check-tuned
 ```
 
 ## Documentation & Governance Gates

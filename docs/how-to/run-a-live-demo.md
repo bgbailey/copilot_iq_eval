@@ -14,10 +14,15 @@ This scripted walkthrough demonstrates how `cfeval` quantifies the impact of sem
 
 1. Verify your demo-tenant capacity is active and complete [Prerequisites](../get-started/prerequisites.md) (`eval.tester@contoso.com` signed in via `cfeval login`, Workspace Monitoring active).
 2. Seed the Contoso star schema (`samples/contoso/README.md`) or prepare your target semantic model plus an uncertified `Sales Sandbox` decoy model.
-3. Run preflight and trace probes so authentication and Eventhouse connections are warm:
+3. Run preflight, trace probes, and a reference-DAX check so authentication, Eventhouse connections, and Direct Lake semantic models are warm in memory (especially right after resuming a paused demo Fabric capacity):
    ```bash
-   cfeval doctor --strict
+   cfeval doctor --strict --verify-tokens
    cfeval trace probe
+   cfeval golden-refresh --golden data/golden/contoso-smoke.yaml
+   ```
+4. *(Optional)* If you want the hosted scorecard app to start from a clean 6-run progression history before a live walkthrough, reset the telemetry Eventhouse row data and sync the Lakehouse SQL analytics endpoint:
+   ```bash
+   python tools/setup_demo.py --env .env --reset-baseline --apply
    ```
 
 ## Step 1: Capture the Untuned Baseline Run
@@ -69,7 +74,12 @@ cfeval gate runs/demo-tuned \
   --summary-md runs/demo-tuned/gate-summary.md
 
 cfeval report runs/demo-tuned --out runs/demo-tuned/report.html
+
+# If publishing to a hosted Fabric scorecard app, refresh the Lakehouse SQL analytics endpoint metadata:
+cfeval sync-sql
 ```
+
+*(For a single-command bounded rehearsal that verifies exact seven-table Eventhouse and five-table SQL publication counts and automatically refreshes the SQL analytics endpoint once OneLake Delta commits arrive, use `python tools/rehearse_demo.py --env .env --run-id demo-live-01 --max-questions 8 --max-judge-calls 24`—budgeting up to `3 * N` judge calls for answer grading, explanation consistency, and optional multi-number span disambiguation.)*
 Walk stakeholders through `runs/demo-comparison.md` and `report.html`:
 
 * Show discordant improvements (`FAIL -> PASS`) with **zero regressions** (`PASS -> FAIL = 0`) and the exact paired McNemar $p$-value.

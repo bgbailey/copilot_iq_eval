@@ -49,17 +49,26 @@ enabled for your tenant. Use the supported scaffold and publish flow below.
    cd copilot-eval-scorecard
    ```
 
-2. **Add the lakehouse connector** named `evals` (read-only):
+2. **Add the lakehouse SQL analytics endpoint connector** named `evals` (read-only):
 
    ```bash
+   # Ensure OneLake shortcuts exist and the SQL analytics endpoint has discovered all five tables/columns first:
+   python -m cfeval setup --sync-sql
+
    npx rayfin connector add --type fabric-sqlanalytics --workspace-id <workspace id> \
-     --item-id <lakehouse id> --name evals --operations read
+     --item-id <sql endpoint id> --name evals --operations read
    ```
 
-   Here `--item-id` is the **lakehouse item ID**, not `properties.sqlEndpointProperties.id`.
-   The latter identifies the SQL endpoint for SQL-endpoint APIs; the KQL database GUID is a third, different ID.
-   Run the pinned `npm install` command it prints. Keep the Rayfin dependencies/CLI on the compatible 1.36.2 line.
-   The command discovers the tables into
+   Here `--item-id` **must be `SQL_ENDPOINT_ID` (`properties.sqlEndpointProperties.id`)**, **not** `LAKEHOUSE_ID`.
+   Passing the lakehouse item ID causes `fabric-sqlanalytics` schema discovery in `@microsoft/rayfin@1.36.2` to return
+   zero tables. Keep the three workspace item GUIDs distinct:
+   - `EVENTHOUSE_DATABASE_ID`: KQL database item ID (target of the OneLake shortcuts; `EVENTHOUSE_DATABASE` is its engine `databaseName`).
+   - `LAKEHOUSE_ID`: Lakehouse item ID (host of the `Tables/Eval*` shortcuts).
+   - `SQL_ENDPOINT_ID`: Lakehouse SQL analytics endpoint ID (`--item-id` for `rayfin connector add` and target of `cfeval sync-sql`).
+
+   On Windows workstations behind corporate TLS inspection, set `NODE_USE_SYSTEM_CA=1` before running `npx rayfin`
+   commands so Node.js trusts the OS certificate store. Run the pinned `npm install` command Rayfin prints, and keep
+   the Rayfin dependencies/CLI on the compatible 1.36.2 line. The command discovers the five tables into
    `rayfin/connectors/evals/metadata.json`. Discovery must include all five tables and the app's required
    columns. Keep the connector name **`evals`**, which is the client contract.
 
@@ -169,9 +178,29 @@ standalone/                          local preview with sample data
 standalone/tests/                    node:test suites for metrics, format, dedupe, and entity codegen
 ```
 
-When the telemetry schema changes: run `python tools/gen_app_contract.py`, regenerate the reference entities with
-`node app/scripts/generate-entities.mjs --metadata app/connectors/evals/metadata.example.json --out app/connectors/evals`,
-and in your app refresh the connector metadata and re-run `apply-overlay.mjs`.
+When the telemetry schema changes (for example upgrading from `v0.1` to `v0.2` `SchemaVersion = 2`):
+
+1. Regenerate repo contracts if editing `src/cfeval/schema.py`:
+   ```bash
+   python tools/gen_app_contract.py
+   node app/scripts/generate-entities.mjs --metadata app/connectors/evals/metadata.example.json --out app/connectors/evals
+   ```
+2. Upgrade the existing Eventhouse tables/mappings in place, ingest at least one `v2` batch so OneLake writes the new
+   Delta columns, and sync the Lakehouse SQL analytics endpoint metadata so `INFORMATION_SCHEMA.COLUMNS` exposes them:
+   ```bash
+   python -m cfeval setup
+   python tools/setup_demo.py --env .env --reset-baseline --apply   # or cfeval publish <run_dir> --sync-sql
+   ```
+3. Inside your existing Rayfin app directory, re-discover connector metadata against `<sql endpoint id>`, reapply the
+   overlay, build, and publish in place (preserving your existing `AppBackend` and `GraphQLApi` item IDs):
+   ```bash
+   npx rayfin connector add --type fabric-sqlanalytics --workspace-id <workspace id> \
+     --item-id <sql endpoint id> --name evals --operations read --yes
+   node <path to accelerator>/app/scripts/apply-overlay.mjs --project .
+   npm run build
+   npx rayfin up
+   ```
+
 `metadata.example.json` is generated synthetic schema metadata for the reference entities; never use it instead
 of live connector discovery when publishing.
 

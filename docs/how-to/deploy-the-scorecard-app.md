@@ -35,18 +35,19 @@ Pinning `--as-of` guarantees byte-reproducible timestamps and `RunId` digests ac
 
 To host the overlay against live `EvalRun`, `EvalQuestion`, `EvalAsk`, `FabricIqQuery`, `EvalScore`, `EvalResult`, and `EvalEvent` tables in a demo tenant:
 
-1. Bootstrap the telemetry Eventhouse tables and Lakehouse shortcuts (`cfeval setup`).
+1. Bootstrap the telemetry Eventhouse tables, Lakehouse shortcuts, and SQL analytics endpoint metadata (`cfeval setup --sync-sql`).
 2. Verify contract synchronization between Python (`src/cfeval/schema.py`) and TypeScript (`app/overlay/src/eval/generated/contract.ts`):
    ```bash
    python tools/gen_app_contract.py
    ```
-3. Follow the step-by-step connector entity generation and overlay assembly instructions in [`app/README.md`](../../app/README.md):
+3. Follow the step-by-step connector discovery (`npx rayfin connector add --type fabric-sqlanalytics --workspace-id <workspace id> --item-id <sql endpoint id> --name evals --operations read`, passing `SQL_ENDPOINT_ID` rather than `LAKEHOUSE_ID`), overlay installation, and in-place schema upgrade instructions in [`app/README.md`](../../app/README.md):
    ```bash
    node app/scripts/generate-entities.mjs \
      --metadata app/connectors/evals/metadata.example.json \
      --out app/connectors/evals
    ```
-4. Grant scorecard viewers read-only access to the telemetry Eventhouse / Lakehouse only after reviewing [Threat Model](../responsible-use/threat-model.md)—remember that `EvalAsk`, `EvalResult`, and `FabricIqQuery` contain evaluation answers and DAX query text.
+4. After ingesting new runs or schema updates into Eventhouse, run `cfeval sync-sql` (or `cfeval publish <run_dir> --sync-sql`) so the Lakehouse SQL analytics endpoint immediately reflects the latest OneLake Delta commits.
+5. Grant scorecard viewers read-only access to the telemetry Eventhouse / Lakehouse only after reviewing [Threat Model](../responsible-use/threat-model.md)—remember that `EvalAsk`, `EvalResult`, and `FabricIqQuery` contain evaluation answers and DAX query text.
 
 ## Related Pages
 

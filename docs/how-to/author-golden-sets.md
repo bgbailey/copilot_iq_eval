@@ -58,7 +58,7 @@ questions:
 5. **Validate schema before running:**
 
    ```powershell
-   python -m cfeval validate-golden data/golden/contoso.yaml
+   python -m cfeval golden-lint data/golden/contoso.yaml
    ```
 
 See [Golden Schema Reference](../reference/golden-schema.md) for the complete field specification.

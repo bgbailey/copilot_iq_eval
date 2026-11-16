@@ -39,11 +39,14 @@ jobs:
       - run: python tools/check_docs_links.py
       - run: python tools/check_public_wording.py
       - run: >
-          python -m cfeval run --mock --mock-profile tuned
+          python -m cfeval run --mock --profile tuned
           --golden data/golden/contoso.yaml
-          --gates config/gates.yaml
-          --junit runs/ci-tuned/junit.xml
+          --run-id ci-tuned
           --no-publish
+      - run: >
+          python -m cfeval gate runs/ci-tuned
+          --policy config/gates.yaml
+          --junit runs/ci-tuned/junit.xml
 ```
 
 ## Comparing Candidate vs Baseline Runs
@@ -51,7 +54,7 @@ jobs:
 When evaluating an updated semantic model description, custom instruction file, or MCP server build against a stored baseline run:
 
 ```powershell
-python -m cfeval compare runs/baseline-prod runs/candidate-pr --fail-on-regression
+python -m cfeval compare --baseline runs/baseline-prod --candidate runs/candidate-pr --max-regressions 0
 ```
 
 ## Exit Codes

@@ -90,8 +90,8 @@ A balanced suite tests **restraint and routing**, not just happy-path lookups:
 Use the golden-set CLI commands before every run or pull request:
 
 ```bash
-# Scaffold a starter v2 YAML golden set
-cfeval golden scaffold --out data/golden/my-suite.yaml
+# Scaffold a starter v2 YAML golden set from a measure list (JSON/YAML/CSV)
+cfeval golden scaffold --measures measures.csv --out data/golden/my-suite.yaml
 
 # Validate JSON Schema conformance against schemas/golden.schema.json
 cfeval golden validate data/golden/my-suite.yaml
@@ -100,7 +100,7 @@ cfeval golden validate data/golden/my-suite.yaml
 cfeval golden lint data/golden/my-suite.yaml
 ```
 
-*(The top-level alias `cfeval golden-lint --golden data/golden/my-suite.yaml` runs schema + lint checks in one step.)*
+*(The top-level alias `cfeval golden-lint data/golden/my-suite.yaml` runs schema + lint checks in one step.)*
 
 ## Related Pages
 
