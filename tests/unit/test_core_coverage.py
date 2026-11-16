@@ -664,6 +664,29 @@ class TestGoldenV1AndV2:
         assert "L2: name-only routing" not in joined
         assert "L2: time-relative wording" not in joined
 
+    def test_refresh_expected_values_updates_golden_question(self) -> None:
+        from cfeval.powerbi import refresh_expected_values
+
+        class _FakePbiClient:
+            def dataset_ids(self, workspace_id: str) -> dict[str, str]:
+                return {"sales analytics": "ds-1"}
+
+            def scalar(self, workspace_id: str, dataset_id: str, dax: str) -> float:
+                assert dataset_id == "ds-1"
+                return 12840000.0
+
+        q = GoldenQuestion(
+            id="Q01",
+            question="Gross revenue?",
+            expected_model="Sales Analytics",
+            expected_value=100.0,
+            reference_dax='EVALUATE ROW("v", 12840000.0)',
+        )
+        report = refresh_expected_values([q], _FakePbiClient(), "ws-1")
+        assert report[0]["Status"] == "updated"
+        assert q.expected_value == 12840000.0
+        assert q.expected == 12840000.0
+
 
 # ---------------------------------------------------------------------------
 # 5. scorers.py, scoring.py, foundry.py

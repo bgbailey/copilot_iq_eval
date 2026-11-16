@@ -45,7 +45,7 @@ def _q_expected_val(q):
 def _set_q_expected_val(q, value):
     if hasattr(q, "expected_value"):
         q.expected_value = value
-    if hasattr(q, "expected"):
+    elif hasattr(q, "expected"):
         q.expected = value
 
 
