@@ -20,11 +20,16 @@ def iso(dt):
 def parse_iso(value):
     if value is None or isinstance(value, datetime):
         return value
-    text = str(value).replace("Z", "+00:00")
-    if "." in text:  # trim fractional seconds to 6 digits for fromisoformat
-        head, frac = text.split(".", 1)
-        digits = "".join(ch for ch in frac if ch.isdigit())
-        rest = frac[len(digits) :]
+    text = str(value).strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    if "." in text:  # normalize fractional seconds to 6 digits for Python 3.10 fromisoformat
+        head, tail = text.split(".", 1)
+        idx = 0
+        while idx < len(tail) and tail[idx].isdigit():
+            idx += 1
+        digits = tail[:idx]
+        rest = tail[idx:]
         text = "%s.%s%s" % (head, (digits + "000000")[:6], rest)
     dt = datetime.fromisoformat(text)
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)

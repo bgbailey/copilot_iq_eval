@@ -255,3 +255,22 @@ def test_cli_ergonomic_aliases_and_sync_sql_flags() -> None:
 
     ns_gr = p.parse_args(["golden-refresh", "--golden", "data/golden/contoso.yaml"])
     assert ns_gr.golden == "data/golden/contoso.yaml"
+
+
+def test_parse_iso_preserves_timezone_offsets_and_six_digit_microseconds() -> None:
+    from datetime import timezone
+
+    from cfeval.clock import parse_iso
+
+    dt_z = parse_iso("2026-06-02T10:00:00.000Z")
+    assert dt_z.tzinfo == timezone.utc
+    assert dt_z.microsecond == 0
+
+    dt_ticks = parse_iso("2026-06-02T10:00:00.1234567Z")
+    assert dt_ticks.tzinfo == timezone.utc
+    assert dt_ticks.microsecond == 123456
+
+    dt_offset = parse_iso("2026-06-02T12:00:00.5+02:00")
+    assert dt_offset.astimezone(timezone.utc).hour == 10
+    assert dt_offset.microsecond == 500000
+
