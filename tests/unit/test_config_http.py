@@ -183,7 +183,7 @@ def test_refresh_sql_endpoint_handles_200_202_lro_and_origin_guard() -> None:
     with pytest.raises(FabricApiError, match="failed"):
         c_fail.refresh_sql_endpoint(ws_id, ep_id, poll_interval_s=1.0)
 
-    # Regional wabi-*.analysis.windows.net Location header routes safely via x-ms-operation-id on api.fabric.microsoft.com
+    # Regional wabi-*.analysis.windows.net Location routes via x-ms-operation-id on api.fabric.microsoft.com
     s_wabi = _FakeSession(
         [
             _FakeResponse(
