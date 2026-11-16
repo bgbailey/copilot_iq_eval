@@ -12,6 +12,7 @@ import base64
 import html
 import json
 import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -128,7 +129,7 @@ def verify_token_claims(
 
 
 def _protect_private_file(path):
-    if os.name != "nt":
+    if sys.platform != "win32" or os.name != "nt":
         path.chmod(0o600)
         return
     import ctypes
