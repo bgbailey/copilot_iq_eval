@@ -1469,7 +1469,15 @@ def cmd_trace(settings: Settings, args: argparse.Namespace) -> int:
     if not settings.trace_enabled:
         print("ERR MONITORING_QUERY_URI and MONITORING_DATABASE are not configured.")
         return 4
-    mon_live, _wm = _monitoring(settings, [], print)
+    probe_questions: Sequence[GoldenQuestion] = []
+    if settings.golden_set:
+        try:
+            g_local = _resolve_local_path(settings.golden_set)
+            g_path = g_local if g_local.exists() else resolve_golden_path(settings.golden_set, log=lambda *_: None)
+            probe_questions = load_golden(g_path)
+        except Exception:
+            probe_questions = []
+    mon_live, _wm = _monitoring(settings, probe_questions, print)
     latest_live = mon_live.latest_timestamp()
     print("ok  workspace monitoring probe: latest_timestamp=%s" % (iso(latest_live) if latest_live else "none"))
     return 0
