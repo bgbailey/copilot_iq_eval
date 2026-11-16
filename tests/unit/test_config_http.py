@@ -273,4 +273,3 @@ def test_parse_iso_preserves_timezone_offsets_and_six_digit_microseconds() -> No
     dt_offset = parse_iso("2026-06-02T12:00:00.5+02:00")
     assert dt_offset.astimezone(timezone.utc).hour == 10
     assert dt_offset.microsecond == 500000
-
