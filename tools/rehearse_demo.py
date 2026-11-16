@@ -288,10 +288,10 @@ def main(argv=None):
                     raise ValueError("Unknown question IDs: %s" % ", ".join(sorted(unknown)))
                 questions = [q for q in questions if q.id in wanted]
             count = len(questions)
-            if count > args.max_questions or 2 * count > args.max_judge_calls:
+            if count > args.max_questions or 3 * count > args.max_judge_calls:
                 raise ValueError(
-                    "Selected %d questions require %d question and %d judge attempts; above allowance"
-                    % (count, count, 2 * count)
+                    "Selected %d questions require %d question and up to %d judge attempts; above allowance"
+                    % (count, count, 3 * count)
                 )
             if any(
                 q.expected_value is None
@@ -343,7 +343,7 @@ def main(argv=None):
                 "state": "submitting",
                 "questions": [q.id for q in questions],
                 "reserved_question_attempts": count,
-                "reserved_judge_attempts": 2 * count,
+                "reserved_judge_attempts": min(args.max_judge_calls, 3 * count),
                 "retries": 0,
                 "started_utc": iso(utc_now()),
                 "mock": args.mock,
@@ -362,7 +362,7 @@ def main(argv=None):
                 run_name="Demo rehearsal " + args.run_id,
                 chat_max_retries=0,
                 judge_max_retries=0,
-                judge_max_calls=2 * count,
+                judge_max_calls=min(args.max_judge_calls, 3 * count),
             )
             harness.golden_hash = golden_hash(settings.golden_set)
             outcome = harness.run()
