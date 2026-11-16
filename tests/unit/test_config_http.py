@@ -183,7 +183,26 @@ def test_refresh_sql_endpoint_handles_200_202_lro_and_origin_guard() -> None:
     with pytest.raises(FabricApiError, match="failed"):
         c_fail.refresh_sql_endpoint(ws_id, ep_id, poll_interval_s=1.0)
 
-    # Cross-origin Location header is rejected before sending credentials
+    # Regional wabi-*.analysis.windows.net Location header routes safely via x-ms-operation-id on api.fabric.microsoft.com
+    s_wabi = _FakeSession(
+        [
+            _FakeResponse(
+                202,
+                "",
+                headers={
+                    "Location": "https://wabi-us-central-b-primary-redirect.analysis.windows.net/v1/operations/00000000-0000-0000-0000-000000000088",
+                    "x-ms-operation-id": "00000000-0000-0000-0000-000000000088",
+                },
+            ),
+            _FakeResponse(200, '{"status":"Succeeded","percentComplete":100}'),
+        ]
+    )
+    c_wabi = FabricClient(token_provider=lambda: "tok", session=s_wabi, sleep_fn=clock.sleep)
+    res_wabi = c_wabi.refresh_sql_endpoint(ws_id, ep_id, poll_interval_s=1.0)
+    assert res_wabi["status"] == "Succeeded"
+    assert s_wabi.calls[1][1] == "https://api.fabric.microsoft.com/v1/operations/00000000-0000-0000-0000-000000000088"
+
+    # Cross-origin Location header without x-ms-operation-id is rejected before sending credentials
     s_evil = _FakeSession(
         [_FakeResponse(202, "", headers={"Location": "https://attacker.example.com/v1/operations/1"})]
     )

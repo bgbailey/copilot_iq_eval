@@ -168,6 +168,50 @@ class FabricClient:
             raise FabricApiError("Shortcut %s/%s did not read back with its expected target" % (path, name))
         return saved
 
+    def poll_operation(
+        self,
+        resp,
+        *,
+        skill=None,
+        poll_interval_s=5.0,
+        max_polls=36,
+        fetch_result=False,
+    ):
+        """Resolve a Fabric 200/202 response, preferring `/operations/{x-ms-operation-id}` on 202 LROs."""
+        status_code = getattr(resp, "status_code", 200)
+        headers = getattr(resp, "headers", None) or {}
+        op_id = ""
+        for k, v in headers.items():
+            if str(k).lower() == "x-ms-operation-id" and v:
+                op_id = str(v).strip()
+                break
+        location = headers.get("Location") or headers.get("location")
+        poll_target = ("/operations/%s" % quote(op_id, safe="")) if op_id else location
+        if status_code != 202 or not poll_target:
+            return resp.json() if getattr(resp, "content", None) else {"status": "Succeeded"}
+
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        try:
+            first_wait = max(1.0, min(30.0, float(retry_after))) if retry_after is not None else float(poll_interval_s)
+        except (TypeError, ValueError):
+            first_wait = float(poll_interval_s)
+
+        eff_skill = skill or self.skill
+        for attempt in range(max(1, int(max_polls))):
+            self.sleep_fn(first_wait if attempt == 0 else float(poll_interval_s))
+            op = self._request("GET", poll_target, skill=eff_skill) or {}
+            state = str(op.get("status") or "").strip().lower()
+            if state in ("succeeded", "completed"):
+                if fetch_result:
+                    res_path = poll_target.rstrip("/") + "/result"
+                    res = self._request("GET", res_path, missing_ok=True, skill=eff_skill)
+                    if res is not None:
+                        return res
+                return op
+            if state in ("failed", "cancelled", "canceled"):
+                raise FabricApiError("Fabric operation %s: %s" % (state, op.get("error") or op))
+        raise FabricApiError("Fabric operation timed out after %d polls (%s)" % (int(max_polls), poll_target))
+
     def refresh_sql_endpoint(
         self,
         workspace_id,
@@ -180,31 +224,7 @@ class FabricClient:
         path = "/workspaces/%s/sqlEndpoints/%s/refreshMetadata" % (workspace_id, sql_endpoint_id)
         body = {"timeout": {"timeUnit": "Minutes", "value": max(1, int(timeout_minutes))}}
         resp = self._request_raw("POST", path, body=body, skill="sqldw-cli")
-        status_code = getattr(resp, "status_code", 200)
-        headers = getattr(resp, "headers", None) or {}
-        location = headers.get("Location") or headers.get("location")
-        if status_code != 202 or not location:
-            return resp.json() if getattr(resp, "content", None) else {"status": "Succeeded"}
-
-        retry_after = headers.get("Retry-After") or headers.get("retry-after")
-        try:
-            first_wait = max(1.0, min(30.0, float(retry_after))) if retry_after is not None else float(poll_interval_s)
-        except (TypeError, ValueError):
-            first_wait = float(poll_interval_s)
-
-        for attempt in range(max(1, int(max_polls))):
-            self.sleep_fn(first_wait if attempt == 0 else float(poll_interval_s))
-            op = self._request("GET", location, skill="sqldw-cli") or {}
-            state = str(op.get("status") or "").strip().lower()
-            if state in ("succeeded", "completed"):
-                return op
-            if state in ("failed", "cancelled", "canceled"):
-                raise FabricApiError(
-                    "SQL endpoint metadata refresh %s for %s: %s" % (state, sql_endpoint_id, op.get("error") or op)
-                )
-        raise FabricApiError(
-            "SQL endpoint metadata refresh timed out after %d polls for %s" % (int(max_polls), sql_endpoint_id)
-        )
+        return self.poll_operation(resp, skill="sqldw-cli", poll_interval_s=poll_interval_s, max_polls=max_polls)
 
 
 def onelake_delta_version(
