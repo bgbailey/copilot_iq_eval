@@ -1,0 +1,79 @@
+# Golden questions: what we ask Copilot and how we know the right answer.
+#
+#   expected        the right value. In a live run it is replaced by the reference_dax result.
+#   unit            currency, percent or number. Percent values are written as 41.6, not 0.416.
+#   tolerance       relative tolerance (0.005 = 0.5%). Display rounding such as "$12.8M" is allowed for.
+#   reference_dax   DAX that returns the right value from the certified semantic model.
+#   expected_report the report Copilot should cite. expected_model: the model the DAX should run on.
+#   decoys          look-alike items that must not be cited or queried.
+#   expect_refusal  true when the right answer is to decline (the data doesn't exist).
+#
+# Table and measure names match the demo model built in docs/deployment-guide.md.
+
+questions:
+  - id: Q01
+    question: What was gross revenue in FY2025 in the Sales Analytics report?
+    expected: 12840000
+    unit: currency
+    reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q02
+    question: What was gross revenue in FY2025?
+    expected: 12840000
+    unit: currency
+    reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Year] = "FY2025"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q03
+    question: What was net revenue in FY2025 after discounts and returns?
+    expected: 11950000
+    unit: currency
+    reference_dax: EVALUATE ROW("v", CALCULATE([Net Revenue], 'Date'[Fiscal Year] = "FY2025"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q04
+    question: How many units did we sell in Q2 FY2025?
+    expected: 48210
+    unit: number
+    reference_dax: EVALUATE ROW("v", CALCULATE([Units], 'Date'[Fiscal Quarter] = "FY2025 Q2"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q05
+    question: What was the gross margin percentage in FY2025?
+    expected: 41.6
+    unit: percent
+    reference_dax: EVALUATE ROW("v", CALCULATE([Gross Margin %], 'Date'[Fiscal Year] = "FY2025") * 100)
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q06
+    question: How much did we lose to product returns in FY2025?
+    expected: 320000
+    unit: currency
+    reference_dax: EVALUATE ROW("v", CALCULATE([Product Returns], 'Date'[Fiscal Year] = "FY2025"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q07
+    question: What's our latest quarterly revenue number?
+    expected: 3410000
+    unit: currency
+    reference_dax: EVALUATE ROW("v", CALCULATE([Gross Revenue], 'Date'[Fiscal Quarter] = "FY2027 Q1"))
+    expected_report: Sales Analytics
+    expected_model: Sales Analytics
+    decoys: [Sales Sandbox]
+
+  - id: Q08
+    question: What will gross revenue be in FY2030?
+    expect_refusal: true
