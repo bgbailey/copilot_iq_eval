@@ -1,0 +1,8 @@
+[cfeval.targets]
+copilot-chat = cfeval.targets.copilot_chat:CopilotChatTarget
+fabric-data-agent = cfeval.targets.data_agent:FabricDataAgentTarget
+fabric-iq-mcp-reference = cfeval.targets.mcp_reference:FabricIqMcpReferenceTarget
+import = cfeval.targets.transcript_import:TranscriptImportTarget
+
+[console_scripts]
+cfeval = cfeval.cli:main
