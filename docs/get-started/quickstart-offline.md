@@ -27,10 +27,12 @@ Each run writes structured JSONL artifacts (`EvalRun.jsonl`, `EvalQuestion.jsonl
 ## 3. Generate a Self-Contained HTML Scorecard
 
 ```powershell
-python -m cfeval report --run-dir runs/quickstart-tuned --out runs/quickstart-tuned/report.html
+python -m cfeval report --run-dir runs/quickstart-tuned --baseline runs/quickstart-untuned --out runs/quickstart-tuned/report.html
 ```
 
-Open `runs/quickstart-tuned/report.html` in any browser to inspect pass rates, Wilson 95% confidence intervals, routing evidence tiers, and per-question DAX traces.
+Open `runs/quickstart-tuned/report.html` in any browser to inspect pass rates, Wilson 95% confidence intervals, paired baseline-vs-candidate McNemar comparison, routing evidence tiers, and per-question DAX traces:
+
+![Self-contained cfeval HTML5 scorecard report](../images/cli-html-report.png)
 
 ## 4. Run a Paired Regression Comparison
 

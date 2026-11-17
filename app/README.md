@@ -11,6 +11,24 @@ through OneLake availability) and signs viewers in with Fabric SSO.
 | Performance | Answer latency trend and distribution, independent answer/why round trips vs captured DAX work per question, harness stage timings, the slowest DAX queries |
 | Runs | Every run with its scoring backend, data source (live or simulated), accuracy, confidence interval, latency, and Foundry report link; cross-backend verdict agreement |
 
+## Screenshots (Simulated Sample Data)
+
+### Overview — KPI Strip, Pass-Rate Trend, Failure Breakdown & Routing Matrix
+
+![Scorecard Overview tab](../docs/images/scorecard-overview.png)
+
+### Questions — Per-Question Stability, Answer, Citations & Engine DAX Inspector
+
+![Scorecard Questions tab with Q02 selected](../docs/images/scorecard-questions.png)
+
+### Performance — Answer Latency, Stage Timings & Slowest DAX Queries
+
+![Scorecard Performance tab](../docs/images/scorecard-performance.png)
+
+### Runs — Multi-Run Progression & Option 1 vs. Option 2 Backend Agreement
+
+![Scorecard Runs tab](../docs/images/scorecard-runs.png)
+
 ## Try it locally with sample data (no Fabric needed)
 
 ```bash

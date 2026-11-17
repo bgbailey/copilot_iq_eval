@@ -25,6 +25,27 @@ python -m cfeval report --run-dir runs/demo-tuned --out runs/demo-tuned/report.h
 python -m cfeval run --target transcript-import --transcript samples/contoso/transcript_sample.jsonl --golden data/golden/contoso-smoke.yaml --no-publish
 ```
 
+## Scorecard & HTML Report Preview
+
+Every run emits a zero-dependency single-file HTML5 scorecard (`cfeval report`), and the optional **Fabric Apps (Rayfin) scorecard** (`app/`) provides multi-run trends, routing matrices, and side-by-side DAX/turn inspection over simulated sample data or a telemetry Eventhouse:
+
+![Scorecard Overview — pass-rate trend, verdicts by run, failure reasons, and semantic model routing matrix](docs/images/scorecard-overview.png)
+
+<details>
+<summary><strong>More screenshots: Question &amp; DAX Inspector and CLI HTML5 Report</strong></summary>
+
+### Question, Citation, and Engine DAX Inspector (`Questions` tab)
+
+![Scorecard Questions — per-question verdicts, Copilot answer and 'why' explanation, timeline, and captured DAX](docs/images/scorecard-questions.png)
+
+### Self-Contained CLI HTML5 Scorecard (`cfeval report --baseline ...`)
+
+![CLI HTML5 evaluation report with Wilson 95% CI, paired McNemar comparison, and expandable DAX preview](docs/images/cli-html-report.png)
+
+See all four scorecard tabs (`Overview`, `Questions`, `Performance`, `Runs`) in [`app/README.md`](app/README.md) and setup instructions in [Deploy the Scorecard App](docs/how-to/deploy-the-scorecard-app.md).
+
+</details>
+
 ## How This Relates to Microsoft's Evaluation Tools
 
 | Tool / Capability | Primary Role | How `cfeval` Fits In |

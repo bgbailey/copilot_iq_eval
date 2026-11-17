@@ -20,6 +20,10 @@ Open the printed localhost URL to inspect:
 * **Baseline vs. Candidate Diff**: Paired improvements, regressions, and exact McNemar $p$-values.
 * **Turn & DAX Inspector**: Side-by-side prompt, answer, extracted vs. expected value (`MatchKind`), cited artifacts, and captured `SemanticModelLogs` DAX (`LatencyMs`, `DaxTotalMs`, `DaxCpuMs` shown non-additively).
 
+![Scorecard Overview preview](../images/scorecard-overview.png)
+
+![Scorecard Questions and DAX inspector preview](../images/scorecard-questions.png)
+
 ## Refresh Synthetic Sample Data (`cfeval demo-data --as-of`)
 
 To regenerate deterministic multi-run sample data anchored to a reproducible timestamp (`--as-of`) and verify no duplicate `RowId` records exist:

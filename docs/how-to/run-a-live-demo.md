@@ -85,6 +85,8 @@ Walk stakeholders through `runs/demo-comparison.md` and `report.html`:
 * Show discordant improvements (`FAIL -> PASS`) with **zero regressions** (`PASS -> FAIL = 0`) and the exact paired McNemar $p$-value.
 * Inspect the captured `QueryEnd` DAX in `FabricIqQuery` proving `Core Sales` executed cleanly (`DaxErrorCount == 0`) and `Sales Sandbox` was avoided.
 
+![Multi-run baseline-to-tuned progression in the scorecard Runs view](../images/scorecard-runs.png)
+
 ## Related Pages
 
 * [First Live Run](../get-started/first-live-run.md)
