@@ -1,0 +1,5 @@
+product_code,category,target_margin_pct,list_price_tiers
+CLOUD,Cloud Platform,52.0,3
+ANALYTICS,Analytics Suite,46.0,3
+DEVICES,Connected Devices,31.0,3
+SERVICES,Advisory Services,36.0,3

@@ -1,0 +1,37 @@
+// Results Eventhouse for the Copilot + Fabric IQ evaluation accelerator.
+// Run this once in a KQL queryset attached to your results KQL database. It's safe to run again.
+// Column order matters: eval/run_eval.py writes the columns in exactly this order.
+
+// One row per run.
+.create-merge table EvalRuns (
+    RunId: string, Label: string, StartedUtc: datetime, Mode: string, TestUser: string,
+    Questions: int, Answers: int, Passed: int, PassRate: real)
+
+// One row per answer (a question asked once; --repeats asks it more than once).
+.create-merge table EvalResults (
+    RunId: string, QuestionId: string, Attempt: int, AskedUtc: datetime, Question: string, Answer: string,
+    Expected: real, Found: real, ValueCheck: string, ValueReason: string,
+    CitedReports: string, CitationCheck: string, CitationReason: string,
+    QueriedModels: string, ModelCheck: string, ModelReason: string,
+    Verdict: string, LatencyMs: long)
+
+// One row per DAX query found in workspace monitoring for an answer.
+.create-merge table EvalQueries (
+    RunId: string, QuestionId: string, Attempt: int, Timestamp: datetime,
+    SemanticModel: string, Dax: string, DurationMs: long)
+
+// Pass rate per run, newest first.
+.create-or-alter function with (docstring = "Pass rate per run, newest first") RunScores() {
+    EvalRuns
+    | project StartedUtc, Label, RunId, Passed, Answers, PassRate
+    | order by StartedUtc desc
+}
+
+// Every answer in the latest run, with the reason for each check.
+.create-or-alter function with (docstring = "Answers in the latest run") LatestResults() {
+    let latest = toscalar(EvalRuns | top 1 by StartedUtc | project RunId);
+    EvalResults
+    | where RunId == latest
+    | project QuestionId, Attempt, Verdict, ValueReason, CitationReason, ModelReason, Answer
+    | order by QuestionId asc, Attempt asc
+}
