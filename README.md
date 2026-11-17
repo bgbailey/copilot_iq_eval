@@ -46,8 +46,8 @@ One Python script does the evaluation work. You don't deploy anything to Azure.
 
 | Check | What it asks | Evidence | Passes when |
 |---|---|---|---|
-| Value | Is the number right? | Reference DAX result | The answer's closest number is within the tolerance. The default tolerance is 0.5%, plus display rounding of up to 1%, so "$12.8M" passes for 12,840,000 but "about $13M" doesn't. A percentage can be written as 41.6% or 0.416 |
-| Citation | Did it cite the right report? | Copilot's citations | The expected report is cited by its exact name and no decoy is cited |
+| Value | Is the number right? | Reference DAX result | The answer's closest number is within the tolerance. The default tolerance is 0.5%, widened for display rounding up to 1%, so "$12.8M" passes for 12,840,000 but "about $13M" doesn't. A percentage can be written as 41.6% or 0.416 |
+| Citation | Did it cite the right report? | Copilot's citations | The expected report name matches and no decoy is cited; case, underscores and extra spaces are ignored |
 | Model | Did the right semantic model run the query? | `SemanticModelLogs` in workspace monitoring | The DAX ran on the expected model and on no decoy |
 
 The verdict for each question works like this:
@@ -55,8 +55,17 @@ The verdict for each question works like this:
 - **FAIL:** any check fails.
 - **INCONCLUSIVE:** nothing failed but some evidence is missing, usually because the query logs hadn't arrived yet. It's never counted as a pass.
 - **PASS:** every check passes. A question that Copilot should decline, such as a forecast the data doesn't support, passes only when Copilot declines it.
+- **ERROR:** the Copilot request failed.
 
 The rules are in [eval/scoring.py](eval/scoring.py) and are short enough to read in one sitting.
+
+### Scorecard
+
+The scorecard compares runs and shows the verdict and evidence for each answer. See the [scorecard app guide](app/README.md) for screenshots, setup and publishing.
+
+![Scorecard overview](docs/images/scorecard-overview.png)
+
+![Scorecard questions and evidence](docs/images/scorecard-questions.png)
 
 ### Key features
 
@@ -64,7 +73,7 @@ The rules are in [eval/scoring.py](eval/scoring.py) and are short enough to read
 <summary>What this accelerator demonstrates</summary>
 
 - **The right answer comes from the model itself.** Expected values come from reference DAX run against the certified semantic model, not from numbers typed into a spreadsheet.
-- **Numbers are compared the way people write them.** "$12.84M", "12,840,000" and "12.84 million" are all the same value, and vague answers don't pass.
+- **Numbers are compared the way people write them.** "$12.84M", "12,840,000" and "12.84 million" are all the same value, with a cap on display rounding.
 - **Decoys get caught.** A sandbox or draft model with similar names and slightly different numbers fails both the citation check and the model check.
 - **Engine evidence, not just citations.** Workspace monitoring shows which semantic model ran each DAX query, even when the citation looks right.
 - **Repeat runs.** `--repeats 3` asks every question three times and reports the ones that passed every time. Copilot doesn't always give the same answer twice.
@@ -82,7 +91,7 @@ The rules are in [eval/scoring.py](eval/scoring.py) and are short enough to read
 | Microsoft 365 Copilot | A licence for the test user, and the Copilot Chat API (preview) | [Microsoft 365 Copilot](https://www.microsoft.com/microsoft-365/copilot/enterprise) |
 | Microsoft Fabric capacity, F2 or larger | Semantic models, workspace monitoring, the Eventhouse, the Lakehouse and Fabric Apps (preview) | [Fabric pricing](https://azure.microsoft.com/pricing/details/microsoft-fabric/) |
 | Microsoft Entra ID | A dedicated test user and an app registration for sign-in | Included with Microsoft 365 |
-| Python 3.10 or later, and Node.js 20, 22 or 24 | The evaluation script, and the Rayfin command line for the scorecard app | Free |
+| Python 3.10 or later, and Node.js 22.13 or later | The evaluation script, and the Rayfin command line for the scorecard app | Free |
 
 Workspace monitoring and the Eventhouse use capacity while they run, and workspace monitoring keeps query logs for 30 days. Pause the capacity when you're not using it.
 
@@ -94,8 +103,8 @@ Workspace monitoring and the Eventhouse use capacity while they run, and workspa
 
    ```bash
    pip install -r requirements.txt
-   python eval/run_eval.py --answers sample/answers-before.jsonl --label "Before model fixes"
-   python eval/run_eval.py --answers sample/answers-after.jsonl --label "After model fixes"
+   python eval/run_eval.py --answers sample/answers-before.jsonl --label "Before model fixes" --no-publish
+   python eval/run_eval.py --answers sample/answers-after.jsonl --label "After model fixes" --no-publish
    ```
 
    The first run passes 2 of 8 questions and the second passes 7 of 8. The table shows why each answer failed.

@@ -91,7 +91,7 @@ The script appends rows with [inline ingestion](https://learn.microsoft.com/kust
 
 ## 6. Run the evaluation
 
-1. Copy [.env.example](../.env.example) to `.env` and fill in every value.
+1. From the repository root, install the dependencies with `pip install -r requirements.txt`. Copy [.env.example](../.env.example) to `.env` and fill in the values.
 2. Run the saved answers first to check that publishing works. Sign in as the test user when the script asks.
 
    ```bash
