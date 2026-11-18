@@ -1,21 +1,14 @@
 # Scorecard app
 
-The scorecard app is a Fabric app built with [Rayfin](https://rayfin.ai/docs/connectors). It shows how Copilot did on the golden questions in each run, and the evidence behind every answer.
+The scorecard reads the three results tables from the Eventhouse through OneLake availability, Lakehouse shortcuts and a SQL analytics endpoint. The [Rayfin](https://rayfin.ai/docs/connectors) app connects to that endpoint with a read-only `fabric-sqlanalytics` connector named `evals`, not directly to the Eventhouse. See step 7 of the [deployment guide](../docs/deployment-guide.md#7-make-the-results-readable-by-the-scorecard-app).
 
-| Page | What it shows |
-|---|---|
-| Overview | Pass rate per run, so you can compare the baseline with later runs. For the latest run, how many answers passed the value, citation and model checks, and how many touched a decoy |
-| Questions | Every question in a run: the verdict and the reason for each check. Select a question to see Copilot's answer, the expected and found values, the cited reports and the DAX that ran |
+![Published results flow from the evaluation runner to an Eventhouse. Lakehouse shortcuts expose the tables through the SQL analytics endpoint read by the scorecard.](../docs/images/scorecard-data-path.svg)
 
-![Scorecard overview](../docs/images/scorecard-overview.png)
-
-![Scorecard questions and evidence](../docs/images/scorecard-questions.png)
-
-![Scorecard data path](../docs/images/scorecard-data-path.svg)
-
-The app reads the three results tables through a Lakehouse SQL analytics endpoint, using a read-only `fabric-sqlanalytics` connector named `evals`. Rayfin can't add new Eventhouse connectors in its current release, so the tables reach the endpoint through OneLake availability and Lakehouse shortcuts. See step 7 of the [deployment guide](../docs/deployment-guide.md#7-make-the-results-readable-by-the-scorecard-app).
+**Without a tenant:** [replay the saved answers with the CLI](../README.md#replay-the-saved-answers) and use the [scorecard screenshots below](#overview-compare-runs). After setup, the app can display its bundled sample without sign-in. Installing the overlay in a fresh project is different: `apply.mjs` checks `rayfin/connectors/evals/metadata.json` for all three tables, even if you only want sample mode.
 
 ## Prerequisites
+
+The bundled sample has been checked locally. Hosted sign-in, connector schema discovery and live reads from a deployed app remain unverified; validate them in your demo tenant.
 
 - Fabric Apps (preview) is turned on for your tenant and region, and you can create items in the evaluation workspace.
 - The Lakehouse SQL analytics endpoint lists `EvalRuns`, `EvalResults` and `EvalQueries`.
@@ -78,4 +71,14 @@ By default the connector reads the tables as the app's owner, so anyone you shar
 | `live` | Live data only |
 | `sample` | The bundled sample only. No sign-in needed |
 
-The sample data matches the two runs in [sample/](../sample): "Before model fixes" passes 2 of 8 questions and "After model fixes" passes 7 of 8.
+### Overview: compare runs
+
+Compare the two runs from the [saved sample](../sample). Before model fixes, 2 of 8 answers pass; after model fixes, 7 of 8 pass. The latest run also breaks out value, citation and model checks and counts answers that touched a decoy.
+
+![Overview in sample mode: the pass rate rises from 2 of 8 to 7 of 8, and the latest run shows no decoy touches.](../docs/images/scorecard-overview.png)
+
+### Questions: trace one answer
+
+Choose **Before model fixes**, then select **Q02**. The answer gives $12.33M rather than $12.84M, and the citation and logged model both name **Sales Sandbox**. Inspect the answer, expected and found values, cited reports and logged DAX rather than relying on the run's pass rate alone.
+
+![Questions in sample mode: Q02 is selected, with its failed value, citation and model checks above the full answer.](../docs/images/scorecard-questions.png)

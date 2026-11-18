@@ -1,8 +1,10 @@
 # Deployment guide
 
-This guide sets up everything the live evaluation needs, from the test user to the scorecard. Allow about two hours the first time. Run every step in a demo tenant.
+To learn the scoring method without a tenant, start with the [saved-answer Replay lesson](../README.md#replay-the-saved-answers). It uses local files and the checked-in scorecard screenshots; none of the setup below is required.
 
-![Solution architecture](images/solution-architecture.svg)
+This guide is for a **live evaluation in a demo tenant**. It sets up a test user and sign-in app, the Sales Analytics and Sales Sandbox models and reports, workspace monitoring, and a results Eventhouse. The optional scorecard reads those results through Lakehouse shortcuts. The Python runner stays on your machine. Allow about two hours the first time.
+
+![Live architecture: the local runner calls Microsoft 365 Copilot and Fabric; the results Eventhouse feeds the optional scorecard.](images/solution-architecture.svg)
 
 | You'll need | Why |
 |---|---|
@@ -92,7 +94,7 @@ The script appends rows with [inline ingestion](https://learn.microsoft.com/kust
 ## 6. Run the evaluation
 
 1. From the repository root, install the dependencies with `pip install -r requirements.txt`. Copy [.env.example](../.env.example) to `.env` and fill in the values.
-2. Run the saved answers first to check that publishing works. Sign in as the test user when the script asks.
+2. With the results Eventhouse configured, run the saved answers first to check publishing. These commands omit `--no-publish`; sign in as the test user when prompted. A published replay does not test live Copilot grounding.
 
    ```bash
    python eval/run_eval.py --answers sample/answers-before.jsonl --label "Sample: before"
@@ -115,11 +117,13 @@ The script appends rows with [inline ingestion](https://learn.microsoft.com/kust
 
 4. Add `--repeats 3` to ask each question three times. Copilot doesn't always answer the same way twice, and the scorecard shows which questions passed every time.
 
+Validate grounding in your tenant. A Graph beta Copilot Chat API response does not guarantee that Fabric IQ was used. The runner stores the attribution's `providerDisplayName` as its title; it may name a provider rather than a report. Inspect the answer, attribution URL when available, and model logs for that test user and time window. The logs are correlated evidence, not a per-response trace.
+
 ## 7. Make the results readable by the scorecard app
 
-The app reads the results through a Lakehouse SQL analytics endpoint. Rayfin can't add new Eventhouse connectors in its current release.
+The scorecard's connector reads the Lakehouse SQL analytics endpoint, not the Eventhouse directly. A successful CLI publish does not validate schema discovery, hosted sign-in or a viewer's access to live rows.
 
-![Scorecard data path](images/scorecard-data-path.svg)
+![OneLake availability and Lakehouse shortcuts expose the three Eventhouse tables through the SQL analytics endpoint used by scorecard viewers.](images/scorecard-data-path.svg)
 
 1. In the results KQL database, turn on **OneLake availability**. See [Eventhouse OneLake availability](https://learn.microsoft.com/fabric/real-time-intelligence/event-house-onelake-availability).
 2. In the evaluation workspace, create a Lakehouse named, for example, `EvalLakehouse`.
@@ -127,9 +131,18 @@ The app reads the results through a Lakehouse SQL analytics endpoint. Rayfin can
 4. Open the Lakehouse's **SQL analytics endpoint** and check that the three tables appear. New rows can take a few minutes to arrive after OneLake availability syncs.
 5. Follow [app/README.md](../app/README.md) to create and publish the scorecard app.
 
+### Non-production check: follow one run from the CLI to a viewer
+
+Use the same `RunId` throughout (`run_id` in the local JSONL). A passing answer is not required to verify the data path.
+
+- [ ] In `results/<run-id>.jsonl`, inspect the live Q02 answer, citations and any logged DAX. A missing model log cannot pass the model check.
+- [ ] Find that `RunId` with `Mode` = `live` in `EvalRuns`. Match the Q02 row in `EvalResults` and any rows in `EvalQueries` by `RunId`, `QuestionId` and `Attempt`.
+- [ ] After OneLake sync, confirm that the Lakehouse SQL analytics endpoint returns the same run and Q02 verdict.
+- [ ] Sign in to the deployed app as an intended viewer, using live data. Match the run's label and start time on Overview, select it on Questions, and compare Q02 with the SQL result. Confirm the connector's owner or delegated permissions are appropriate for this viewer.
+
 ## 8. Run the demo story
 
-1. Run the baseline: `python eval/run_eval.py --label "Baseline"`. Expect failures on the unnamed questions, which can land on the sandbox, and on net revenue and margin, where Copilot can pick the wrong measure.
+1. Run the baseline: `python eval/run_eval.py --label "Baseline"`. Look for unnamed questions that land on the sandbox, or net revenue and margin answers that use the wrong measure. Your tenant need not reproduce the saved sample's verdicts.
 2. Improve the **Sales Analytics** model:
    - Add descriptions and synonyms to the measures. For example, make clear that **Gross Revenue** is revenue before discounts and returns, and that **Net Revenue** is after them.
    - Hide raw numeric columns so Copilot uses the measures.
