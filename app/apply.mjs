@@ -83,7 +83,9 @@ if (!client.includes(marker)) {
 }
 for (const [name, content] of Object.entries(files)) writeFileSync(join(connector, name), content);
 mkdirSync(join(frontend, 'eval'), { recursive: true });
-for (const name of ['EvalApp.tsx', 'data.ts', 'sample-data.json', 'eval.css']) copyFileSync(join(here, 'src/eval', name), join(frontend, 'eval', name));
+for (const name of ['EvalApp.tsx', 'Overview.tsx', 'Questions.tsx', 'data.ts', 'sample-data.json', 'eval.css']) {
+  copyFileSync(join(here, 'src/eval', name), join(frontend, 'eval', name));
+}
 writeFileSync(rootPath, root);
 writeFileSync(clientPath, client);
 writeFileSync(appPath, "export { default } from './eval/EvalApp';\n");
